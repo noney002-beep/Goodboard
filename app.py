@@ -51,7 +51,20 @@ except Exception as _sheets_import_error:
 
 def fetch_sheet_rows(url=SHEET_URL, allow_fallback=True):
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        # Cache-buster: Google's CSV export endpoint aggressively caches
+        # responses, which can cause newly-written rows (added via gspread)
+        # to be invisible for several minutes. Adding a unique, changing
+        # query param plus no-cache headers forces a fresh fetch every time.
+        cache_buster = f"{'&' if '?' in url else '?'}_cb={int(time.time() * 1000)}"
+        busted_url = url + cache_buster
+        req = urllib.request.Request(
+            busted_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+            },
+        )
         with urllib.request.urlopen(req, timeout=25) as response:
             text = response.read().decode('utf-8-sig')
         reader = csv.DictReader(io.StringIO(text))
