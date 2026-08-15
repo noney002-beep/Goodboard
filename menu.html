@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(W) Asakai KPI Monitoring</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --font:'Segoe UI','Helvetica Neue',Arial,sans-serif;
+  --bg:#f8f6ef;
+  --border:#d7cfc2;
+  --text:#2f2b25;
+  --safety:#3e7c6c; --safety-glow:rgba(62, 124, 108, 0.24); --safety-card:#ebf4ef; --safety-border:#d6e1d9;
+  --env:#8f556f;    --env-glow:rgba(143, 85, 111, 0.22); --env-card:#f7eef2; --env-border:#e7d3db;
+  --prod:#3d5f8b;   --prod-glow:rgba(61, 95, 139, 0.22); --prod-card:#eaeff6; --prod-border:#d7dfe8;
+  --qual:#8e6d3f;   --qual-glow:rgba(142, 109, 63, 0.24); --qual-card:#f6f0e4; --qual-border:#e7dcc9;
+  --cost:#6d5281;   --cost-glow:rgba(109, 82, 129, 0.22); --cost-card:#f3eef6; --cost-border:#d8d0e2;
+  --hrd:#4f5d6b;    --hrd-glow:rgba(79, 93, 107, 0.22); --hrd-card:#eef2f5; --hrd-border:#d7dbdf; --hrd-dark:#64707c;
+}
+
+/* ── FULL VIEWPORT LAYOUT ── */
+html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;}
+
+.page-wrap{
+  display:flex;flex-direction:column;
+  height:100vh;
+  overflow:hidden;
+}
+
+/* ── TOP BAR ── */
+.top-bar{
+  flex-shrink:0;
+  display:flex;align-items:center;
+  background:#fbf2ea;
+  border-bottom:1px solid var(--border);
+  padding:8px 14px;gap:12px;
+  position:relative;
+  flex-wrap:wrap;
+}
+.top-bar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#cfd6e0,transparent);}
+.top-bar .title{flex:1;text-align:center;font-size:20px;font-weight:700;color:var(--text);min-width:150px;}
+.filter-group{display:flex;flex-direction:column;gap:2px}
+.filter-label{font-size:11px;color:#9aa3b2;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+.shift-hint{font-size:11px;color:#b3bac6;margin-top:2px;text-align:center}
+
+.ybtn,.sbtn{
+  background:#f4efe8;border:1px solid var(--border);color:#7a756d;
+  padding:8px 12px;border-radius:4px;cursor:pointer;
+  font-size:13px;font-family:var(--font);font-weight:500;
+  transition:all .15s;min-width:50px;min-height:36px;text-align:center;display:flex;align-items:center;justify-content:center;touch-action:manipulation;
+}
+.ybtn:hover,.sbtn:hover{background:#f3ece7;color:var(--text);border-color:var(--border)}
+.ybtn.active{background:#eaf6f9;color:#0891b2;border-color:#bfe6ee;box-shadow:none}
+.sbtn.active{background:#eef2fb;color:#3b6fd6;border-color:#cddaf3;box-shadow:none}
+.ybtn.sel-all.active,.sbtn.sel-all.active{background:#f6f7f9;color:#8a93a3;border-color:#e2e6ec;box-shadow:none}
+
+/* ── RESPONSIVE GRID ── */
+.kpi-grid{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(100px, 1fr));
+  gap:10px;
+  padding:10px;
+  overflow:hidden;
+  min-height:0;
+}
+@media (max-width: 768px) {
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; }
+  .top-bar { padding: 6px 10px; gap: 8px; }
+}
+
+/* ── COLUMN ── */
+.col{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden;}
+
+.col-header{
+  flex-shrink:0;
+  border-radius:7px;text-align:center;padding:10px 6px;
+  font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.4px;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .2s,color .2s,border-color .2s,box-shadow .2s,transform .15s;
+  position:relative;overflow:hidden;
+  min-height:40px;
+  touch-action:manipulation;
+}
+.col-header::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,transparent 100%);pointer-events:none;}
+.col-header:active{
+  background:linear-gradient(135deg,#c0392b,#d35a4a) !important;
+  color:#fff !important;
+  border-color:#d35a4a !important;
+  box-shadow:0 6px 16px rgba(192,57,43,.25) !important;
+  transform:translateY(-2px);
+}
+
+.col-safety .col-header{background:#eaf6f9;color:var(--safety);border:1px solid var(--safety-border);box-shadow:0 1px 4px var(--safety-glow);}
+.col-env    .col-header{background:#fdf0f6;color:var(--env);  border:1px solid var(--env-border);  box-shadow:0 1px 4px var(--env-glow);}
+.col-prod   .col-header{background:#eef2fb;color:var(--prod); border:1px solid var(--prod-border); box-shadow:0 1px 4px var(--prod-glow);}
+.col-qual   .col-header{background:#fdf6e3;color:var(--qual); border:1px solid var(--qual-border); box-shadow:0 1px 4px var(--qual-glow);}
+.col-cost   .col-header{background:#fdf0ee;color:var(--cost); border:1px solid var(--cost-border); box-shadow:0 1px 4px var(--cost-glow);}
+.col-hrd    .col-header{background:#f0f1f3;color:var(--hrd);  border:1px solid var(--hrd-border);     box-shadow:0 1px 4px var(--hrd-glow);}
+
+/* ── CARD (flex, fills remaining space equally) ── */
+.kpi-card{
+  flex:1;
+  border-radius:6px;overflow:hidden;cursor:pointer;
+  transition:transform .15s,box-shadow .15s;
+  display:flex;flex-direction:column;
+  min-height:0;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+  touch-action:manipulation;
+  min-height:80px;
+}
+.kpi-card:active{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.12)}
+
+.card-title{
+  flex-shrink:0;
+  text-align:center;padding:6px 6px;
+  font-size:12px;font-weight:600;letter-spacing:.3px;
+  min-height:32px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Safety */
+.col-safety .kpi-card{background:var(--safety-card);border:1px solid var(--safety-border)}
+.col-safety .kpi-card:hover{box-shadow:0 4px 14px var(--safety-glow);border-color:var(--safety)}
+.col-safety .card-title{background:rgba(8,145,178,.08);color:var(--safety);border-bottom:1px solid var(--safety-border)}
+.col-safety .card-summary{color:var(--safety);border-top-color:var(--safety-border)}
+/* Env */
+.col-env .kpi-card{background:var(--env-card);border:1px solid var(--env-border)}
+.col-env .kpi-card:hover{box-shadow:0 4px 14px var(--env-glow);border-color:var(--env)}
+.col-env .card-title{background:rgba(214,67,138,.08);color:var(--env);border-bottom:1px solid var(--env-border)}
+.col-env .card-summary{color:var(--env);border-top-color:var(--env-border)}
+/* Prod */
+.col-prod .kpi-card{background:var(--prod-card);border:1px solid var(--prod-border)}
+.col-prod .kpi-card:hover{box-shadow:0 4px 14px var(--prod-glow);border-color:var(--prod)}
+.col-prod .card-title{background:rgba(59,111,214,.08);color:var(--prod);border-bottom:1px solid var(--prod-border)}
+.col-prod .card-summary{color:var(--prod);border-top-color:var(--prod-border)}
+/* Qual */
+.col-qual .kpi-card{background:var(--qual-card);border:1px solid var(--qual-border)}
+.col-qual .kpi-card:hover{box-shadow:0 4px 14px var(--qual-glow);border-color:var(--qual)}
+.col-qual .card-title{background:rgba(184,144,43,.08);color:var(--qual);border-bottom:1px solid var(--qual-border)}
+.col-qual .card-summary{color:var(--qual);border-top-color:var(--qual-border)}
+/* Cost */
+.col-cost .kpi-card{background:var(--cost-card);border:1px solid var(--cost-border)}
+.col-cost .kpi-card:hover{box-shadow:0 4px 14px var(--cost-glow);border-color:var(--cost)}
+.col-cost .card-title{background:rgba(214,96,90,.08);color:var(--cost);border-bottom:1px solid var(--cost-border)}
+.col-cost .card-summary{color:var(--cost);border-top-color:var(--cost-border)}
+/* HRD */
+.col-hrd .kpi-card{background:var(--hrd-card);border:1px solid var(--hrd-border)}
+.col-hrd .kpi-card:hover{box-shadow:0 4px 12px var(--hrd-glow);border-color:var(--hrd-dark)}
+.col-hrd .card-title{background:rgba(107,118,134,.06);color:var(--hrd);border-bottom:1px solid var(--hrd-border)}
+.col-hrd .card-summary{color:var(--hrd);border-top-color:var(--hrd-border)}
+
+/* ── CHART AREA ── */
+.card-chart{
+  flex:1;min-height:0;
+  padding:4px 6px;
+  position:relative;
+}
+.card-chart svg{display:block;width:100%;height:100%;}.card-summary{
+  padding:6px 8px 8px;
+  font-size:11px;
+  color:#4b5563;
+  text-align:center;
+  border-top:1px solid rgba(149, 157, 165, 0.16);
+  background:rgba(255,255,255,0.72);
+  min-height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+}
+.card-summary span{font-weight:700;color:#1f2937;}
+/* ── BOTTOM BAR ── */
+.bottom-links{
+  flex-shrink:0;
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:8px;padding:6px 10px;
+  background:#ffffff;
+  border-top:1px solid #e2e6ec;
+}
+.link-btn{
+  background:#f5efe8;color:#7a756d;border:1px solid var(--border);
+  padding:7px 6px;border-radius:6px;cursor:pointer;
+  font-size:11px;font-weight:600;font-family:var(--font);
+  text-align:center;transition:all .15s;letter-spacing:.3px;text-transform:uppercase;
+}
+.link-btn:hover{background:#f6f7f9;color:#8a93a3;border-color:#e2e6ec}
+.link-btn.safety:hover{background:var(--safety-card);border-color:var(--safety);color:var(--safety);box-shadow:0 1px 6px var(--safety-glow)}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1000;backdrop-filter:blur(3px);align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex}
+.modal{background:#ffffff;border-radius:12px;width:min(600px,90vw);max-height:80vh;overflow-y:auto;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.15),0 0 0 1px #e2e6ec;}
+.modal-head{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:1;border-bottom:1px solid #e2e6ec;background:#fff;}
+.modal-head h2{font-size:16px;font-weight:700;color:#3a3f47;}
+.modal-close{background:#f6f7f9;border:1px solid #e2e6ec;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;color:#8a93a3;display:flex;align-items:center;justify-content:center;font-family:var(--font);transition:background .12s;}
+.modal-close:hover{background:#eef0f3;color:#3a3f47}
+.modal-body{padding:16px 20px}
+.modal-body p{color:#6b7686;font-size:13px;line-height:1.7;margin-bottom:8px}
+</style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+<div class="page-wrap">
+
+<!-- ══ TOP BAR ══ -->
+<div class="top-bar">
+  <div class="filter-group">
+    <div class="filter-label">Year</div>
+    <div class="btn-row" id="yearGrid">
+      <button class="ybtn sel-all active" data-val="all">Select all</button>
+      <button class="ybtn" data-val="2024">2024</button>
+      <button class="ybtn active" data-val="2025">2025</button>
+      <button class="ybtn active" data-val="2026">2026</button>
+    </div>
+    <div class="shift-hint">Hold Shift + click to multi-select</div>
+  </div>
+  <div class="title">(W) Asakai KPI Monitoring</div>
+  <div class="filter-group">
+    <div class="filter-label">Shift</div>
+    <div class="btn-row" id="shiftGrid">
+      <button class="sbtn sel-all active" data-val="all">Select all</button>
+      <button class="sbtn" data-val="w">W</button>
+      <button class="sbtn" data-val="y">Y</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN GRID ══ -->
+<div class="kpi-grid">
+
+  <!-- SAFETY -->
+  <div class="col col-safety">
+    <div class="col-header" onclick="navigateTo('safety')">🛡 Safety</div>
+    <div class="kpi-card" onclick="navigateTo('safety')">
+      <div class="card-title">Accident</div>
+      <div class="card-chart"><svg id="svg_s1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('safety')">
+      <div class="card-title">On Job</div>
+      <div class="card-chart"><svg id="svg_s2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('safety')">
+      <div class="card-title">Off Job</div>
+      <div class="card-chart"><svg id="svg_s3" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('safety')">
+      <div class="card-title">Heath Care</div>
+      <div class="card-chart"><svg id="svg_s4" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENT -->
+  <div class="col col-env">
+    <div class="col-header" onclick="navigateTo('Enviroment')">🌿 Environment</div>
+    <div class="kpi-card" onclick="navigateTo('Enviroment')">
+      <div class="card-title">Waste</div>
+      <div class="card-chart"><svg id="svg_e1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('Enviroment')">
+      <div class="card-title">Contaminate</div>
+      <div class="card-chart"><svg id="svg_e2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('Enviroment')">
+      <div class="card-title">Water</div>
+      <div class="card-chart"><svg id="svg_e3" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('Enviroment')">
+      <div class="card-title">Co2 and Energy</div>
+      <div class="card-chart"><svg id="svg_e4" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+  <!-- PRODUCTION -->
+  <div class="col col-prod">
+    <div class="col-header" onclick="navigateTo('wproduction')">⚙ Production</div>
+    <div class="kpi-card" onclick="navigateTo('wproduction')" style="flex:2">
+      <div class="card-title">%(W) Eff</div>
+      <div class="card-chart"><svg id="svg_p1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('wproduction')" style="flex:2">
+      <div class="card-title">(W) Stop-Time</div>
+      <div class="card-chart"><svg id="svg_p2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('wproduction')">
+      <div class="card-title">NW &amp; FW</div>
+      <div class="card-chart"><svg id="svg_p3" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+  <!-- QUALITY -->
+  <div class="col col-qual">
+    <div class="col-header" onclick="navigateTo('quality')">✔ Quality</div>
+    <div class="kpi-card" onclick="navigateTo('quality')">
+      <div class="card-title">SQA</div>
+      <div class="card-chart"><svg id="svg_q1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('quality')">
+      <div class="card-title">CVI</div>
+      <div class="card-chart"><svg id="svg_q2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('quality')">
+      <div class="card-title">EDP</div>
+      <div class="card-chart"><svg id="svg_q3" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('quality')">
+      <div class="card-title">(W) Inspection</div>
+      <div class="card-chart"><svg id="svg_q4" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+  <!-- COST -->
+  <div class="col col-cost">
+    <div class="col-header" onclick="navigateTo('cost')">💰 Cost</div>
+    <div class="kpi-card" onclick="navigateTo('cost')">
+      <div class="card-title">Cost B/U</div>
+      <div class="card-chart"><svg id="svg_c1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('cost')">
+      <div class="card-title">Direct Cost</div>
+      <div class="card-chart"><svg id="svg_c2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('cost')">
+      <div class="card-title">Indirect Cost</div>
+      <div class="card-chart"><svg id="svg_c3" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('cost')">
+      <div class="card-title">Fix Cost</div>
+      <div class="card-chart"><svg id="svg_c4" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+  <!-- HRD -->
+  <div class="col col-hrd">
+    <div class="col-header" onclick="navigateTo('hrd')">👥 HRD</div>
+    <div class="kpi-card" onclick="navigateTo('hrd')">
+      <div class="card-title">%(W) Training</div>
+      <div class="card-chart"><svg id="svg_h1" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('hrd')">
+      <div class="card-title">Internal Training</div>
+      <div class="card-chart"><svg id="svg_h2" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('hrd')">
+      <div class="card-title">External Training</div>
+      <div class="card-chart"><svg id="svg_h3" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="kpi-card" onclick="navigateTo('hrd')">
+      <div class="card-title">Functional Training</div>
+      <div class="card-chart"><svg id="svg_h4" preserveAspectRatio="none"></svg></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ BOTTOM BAR ══ -->
+<div class="bottom-links">
+  <button class="link-btn safety" onclick="navigateTo('form')">กรอกข้อมูล</button>
+  <button class="link-btn safety" onclick="navigateTo('history')">ประวัติ</button>
+  <button class="link-btn safety" onclick="navigateTo('code')">back to home</button>
+</div>
+
+</div><!-- end page-wrap -->
+
+<script>
+  const BASE_URL = (window.APP && typeof APP.initAppState === 'function') ? APP.initAppState() : '';
+  function routeName(page) {
+    const name = String(page || '').replace(/\.html$/i, '').toLowerCase();
+    const map = {
+      environment: 'Enviroment',
+      eviroment: 'Enviroment',
+      wproduction: 'Wproduction',
+      quality: 'Quality',
+      code: 'Code',
+      safety: 'safety',
+      cost: 'cost',
+      hrd: 'hrd',
+      form: 'form',
+      history: 'history'
+    };
+    return map[name] || name;
+  }
+
+  function navigateTo(page) {
+    page = routeName(page);
+    var href;
+    if (window.APP && typeof APP.buildPageHref === 'function') {
+      href = APP.buildPageHref(page);
+    } else {
+      href = page + '.html';
+    }
+    if (window.APP && typeof APP.safeNavigate === 'function') {
+      APP.safeNavigate(href);
+    } else {
+      window.location.href = href;
+    }
+  }
+
+  function getCategoryColor(category) {
+    var map = {
+      safety: '--safety',
+      environment: '--env',
+      production: '--prod',
+      quality: '--qual',
+      cost: '--cost',
+      hrd: '--hrd'
+    };
+    var key = map[category] || '--text';
+    var value = getComputedStyle(document.documentElement).getPropertyValue(key).trim();
+    return value || '#3b6fd6';
+  }
+</script>
+
+<script>
+  // Start SSE stream to get real-time updates
+  function startStream(){
+    if(typeof(EventSource)==='undefined')return;
+    try{
+      var es=new EventSource('/api/stream');
+      es.onmessage=function(ev){
+        try{
+          var payload=JSON.parse(ev.data);
+          if(payload && payload.records){
+            allApiRecords = payload.records;
+            dataLoaded = true;
+            applyFiltersAndRender();
+          }
+        }catch(err){console.error('stream parse',err)}
+      };
+      es.onerror=function(){ setTimeout(startStream,5000); };
+    }catch(e){console.error('SSE start failed',e)}
+  }
+</script>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head" id="modalHead">
+      <h2 id="modalTitle">Title</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ═══ YEAR / SHIFT FILTER ═══ */
+var lastYear=null,shiftDown=false;
+document.addEventListener('keydown',function(e){if(e.key==='Shift')shiftDown=true});
+document.addEventListener('keyup',  function(e){if(e.key==='Shift')shiftDown=false});
+
+(function(){
+  var grid=document.getElementById('yearGrid');
+  var btns=Array.from(grid.querySelectorAll('[data-val]'));
+  var allBtn=btns.find(function(b){return b.dataset.val==='all'});
+  var years=btns.filter(function(b){return b.dataset.val!=='all'});
+  allBtn.addEventListener('click',function(){var n=!allBtn.classList.contains('active');btns.forEach(function(b){b.classList.toggle('active',n)});debouncedRender();});
+  years.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      if(shiftDown&&lastYear&&lastYear!==btn){var ia=years.indexOf(lastYear),ib=years.indexOf(btn),lo=Math.min(ia,ib),hi=Math.max(ia,ib);years.slice(lo,hi+1).forEach(function(b){b.classList.add('active')});}
+      else btn.classList.toggle('active');
+      lastYear=btn;
+      allBtn.classList.toggle('active',years.every(function(b){return b.classList.contains('active')}));
+      debouncedRender();
+    });
+  });
+})();
+
+(function(){
+  var grid=document.getElementById('shiftGrid');
+  var btns=Array.from(grid.querySelectorAll('[data-val]'));
+  var allBtn=btns.find(function(b){return b.dataset.val==='all'});
+  var others=btns.filter(function(b){return b.dataset.val!=='all'});
+  allBtn.addEventListener('click',function(){var n=!allBtn.classList.contains('active');btns.forEach(function(b){b.classList.toggle('active',n)});debouncedRender();});
+  others.forEach(function(btn){btn.addEventListener('click',function(){btn.classList.toggle('active');allBtn.classList.toggle('active',others.every(function(b){return b.classList.contains('active')}));debouncedRender();});});
+})();
+
+/* ═══ STATE ═══ */
+var allApiRecords=[],dataLoaded=false,debTimer=null;
+var MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+var ALL_SVG_IDS=['svg_s1','svg_s2','svg_s3','svg_s4',
+                 'svg_e1','svg_e2','svg_e3','svg_e4',
+                 'svg_p1','svg_p2','svg_p3',
+                 'svg_q1','svg_q2','svg_q3','svg_q4',
+                 'svg_c1','svg_c2','svg_c3','svg_c4',
+                 'svg_h1','svg_h2','svg_h3','svg_h4'];
+
+/* ═══ API LOAD ═══ */
+async function loadAllRecords(){
+  ALL_SVG_IDS.forEach(function(id){setLoading(id);});
+  var allRec=[],page=1,totalPages=1;
+  // Only treat a base URL as valid if it's a non-placeholder string (not starting with '<')
+  function validBase(u){return typeof u==='string'&&u.trim()&&u.trim().indexOf('<')!==0&&(u.trim().startsWith('http')||u.indexOf('script.google.com')!==-1);} 
+  var endpoint = validBase(BASE_URL)?BASE_URL:(validBase(window.BASE_URL)?window.BASE_URL:'');
+  if (!endpoint && window.location.protocol === 'https:' && window.location.hostname === 'script.google.com') {
+    endpoint = window.location.origin + window.location.pathname;
+  }
+
+  async function tryLocalJson() {
+    try {
+      const resp = await fetch('production-data.json', { cache: 'no-store' });
+      if (!resp.ok) return [];
+      const records = await resp.json();
+      return Array.isArray(records) ? records : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  try{
+    do{
+      var params={page:page,per_page:200,sort_col:'record_date',sort_dir:'desc'};
+      var data;
+      if (endpoint){
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action:'getMonitoringData', args:[params]})
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        data = await res.json();
+      } else {
+        const localRecords = await tryLocalJson();
+        data = {records: localRecords, pages: 1};
+      }
+      allRec = allRec.concat(data.records||[]);
+      totalPages = data.pages||1; page++;
+    }while(page<=totalPages);
+    if (!allRec.length) {
+      const localRecords = await tryLocalJson();
+      if (localRecords.length) {
+        allRec = localRecords;
+      }
+    }
+    allApiRecords = allRec; dataLoaded=true;
+    applyFiltersAndRender();
+  }catch(err){
+    console.error('API error:',err);
+    const localRecords = await tryLocalJson();
+    if(localRecords.length){
+      allApiRecords = localRecords; dataLoaded=true; applyFiltersAndRender();
+      return;
+    }
+    ALL_SVG_IDS.forEach(function(id){renderEmpty(id);});
+  }
+}
+
+function debouncedRender(){clearTimeout(debTimer);debTimer=setTimeout(applyFiltersAndRender,80);}
+
+/* ═══ FILTER ═══ */
+function getActiveYears(){
+  var btns=document.querySelectorAll('#yearGrid [data-val]'),active=[];
+  btns.forEach(function(b){if(b.classList.contains('active')&&b.dataset.val!=='all')active.push(b.dataset.val);});
+  return active.length?active:'all';
+}
+function getActiveShifts(){
+  var btns=document.querySelectorAll('#shiftGrid [data-val]'),active=[];
+  btns.forEach(function(b){if(b.classList.contains('active')&&b.dataset.val!=='all')active.push(b.dataset.val);});
+  return active.length?active:'all';
+}
+
+function normalizeRecord(r){
+  return {
+    kpi: String(r.kpi || r.KPI || '').trim(),
+    record_date: String(r.record_date || r.Problem_Date || r.record_date || '').trim(),
+    kumi: r.kumi || r.Kumi || '',
+    process_kpi: r.process_kpi || r.Process_KPI || '',
+    main_kpi: r.main_kpi || r.Main_KPI || '',
+    sub_kpi: r.sub_kpi || r.Sub_KPI || '',
+    shift: r.shift || r.Problem_Shift || '',
+    actual: Number(r.actual != null ? r.actual : (r.Problem_Actual != null ? r.Problem_Actual : r.Actual)),
+    target: Number(r.target != null ? r.target : (r.Problem_Target != null ? r.Problem_Target : r.Target)),
+  };
+}
+
+function applyFiltersAndRender(){
+  if(!dataLoaded)return;
+  var ay=getActiveYears(),as_=getActiveShifts();
+  var filtered=allApiRecords.map(normalizeRecord).filter(function(r){
+    var ry=(r.record_date||'').slice(0,4);
+    if(ay!=='all'&&!ay.includes(ry))return false;
+    if(as_!=='all'){
+      var sv=(r.shift||'').toLowerCase();
+      if(!as_.some(function(s){return(s==='w'&&sv.includes('white'))||(s==='y'&&sv.includes('yellow'));}))return false;
+    }
+    return true;
+  });
+
+  /* SAFETY */
+  var safetyColor = getCategoryColor('safety');
+  drawChart('svg_s1', byMain(filtered,'safety','Accident'),        safetyColor);
+  drawChart('svg_s2', bySub( filtered,'safety','On Job'),          safetyColor);
+  drawChart('svg_s3', bySub( filtered,'safety','Off Job'),         safetyColor);
+  drawChart('svg_s4', byMain(filtered,'safety','Heath Care'),      safetyColor);
+
+  /* ENVIRONMENT */
+  var envColor = getCategoryColor('environment');
+  drawChart('svg_e1', byMain(filtered,'environment','Waste'),      envColor);
+  drawChart('svg_e2', bySub( filtered,'environment','Contaminate'),envColor);
+  drawChart('svg_e3', byMain(filtered,'environment','Water'),      envColor);
+  drawChart('svg_e4', byEnvironmentEnergy(filtered), envColor);
+
+  /* PRODUCTION */
+  var prodColor = getCategoryColor('production');
+  drawChart('svg_p1', byMain(filtered,'production',''),            prodColor);
+  drawChart('svg_p2', bySub( filtered,'production','Stop'),        prodColor);
+  drawChart('svg_p3', byProc(filtered,'production','NW'),          prodColor);
+
+  /* QUALITY */
+  var qualColor = getCategoryColor('quality');
+  drawChart('svg_q1', byMain(filtered,'quality','SQA'),            qualColor);
+  drawChart('svg_q2', byMain(filtered,'quality','CVI'),            qualColor);
+  drawChart('svg_q3', byMain(filtered,'quality','EDP'),            qualColor);
+  drawChart('svg_q4', byMain(filtered,'quality','Inspection'),     qualColor);
+
+  /* COST */
+  var costColor = getCategoryColor('cost');
+  drawChart('svg_c1', byMain(filtered,'cost','Cost B/U'),          costColor);
+  drawChart('svg_c2', bySub( filtered,'cost','Direct'),            costColor);
+  drawChart('svg_c3', bySub( filtered,'cost','Indirect'),          costColor);
+  drawChart('svg_c4', byProc(filtered,'cost','Fix Cost'),          costColor);
+
+  /* HRD */
+  var hrdColor = getCategoryColor('hrd');
+  drawChart('svg_h1', byMain(filtered,'hrd','%(W) Training'),      hrdColor);
+  drawChart('svg_h2', bySub( filtered,'hrd','Internal'),           hrdColor);
+  drawChart('svg_h3', bySub( filtered,'hrd','External'),           hrdColor);
+  drawChart('svg_h4', byHrdFunctional(filtered),                   hrdColor);
+
+  setCardSummary('svg_s1', getSummaryText(byMain(filtered,'safety','Accident')), safetyColor);
+  setCardSummary('svg_s2', getSummaryText(bySub(filtered,'safety','On Job')), safetyColor);
+  setCardSummary('svg_s3', getSummaryText(bySub(filtered,'safety','Off Job')), safetyColor);
+  setCardSummary('svg_s4', getSummaryText(byMain(filtered,'safety','Heath Care')), safetyColor);
+  setCardSummary('svg_e1', getSummaryText(byMain(filtered,'environment','Waste')), envColor);
+  setCardSummary('svg_e2', getSummaryText(byProc(filtered,'environment','Contaminate')), envColor);
+  setCardSummary('svg_e3', getSummaryText(byMain(filtered,'environment','Water')), envColor);
+  setCardSummary('svg_e4', getSummaryText(byEnvironmentEnergy(filtered)), envColor);
+  setCardSummary('svg_p1', getSummaryText(byMain(filtered,'production','')), prodColor);
+  setCardSummary('svg_p2', getSummaryText(bySub(filtered,'production','Stop')), prodColor);
+  setCardSummary('svg_p3', getSummaryText(byProc(filtered,'production','NW')), prodColor);
+  setCardSummary('svg_q1', getSummaryText(byMain(filtered,'quality','SQA')), qualColor);
+  setCardSummary('svg_q2', getSummaryText(byMain(filtered,'quality','CVI')), qualColor);
+  setCardSummary('svg_q3', getSummaryText(byMain(filtered,'quality','EDP')), qualColor);
+  setCardSummary('svg_q4', getSummaryText(byMain(filtered,'quality','Inspection')), qualColor);
+  setCardSummary('svg_c1', getSummaryText(byMain(filtered,'cost','Cost B/U')), costColor);
+  setCardSummary('svg_c2', getSummaryText(bySub(filtered,'cost','Direct')), costColor);
+  setCardSummary('svg_c3', getSummaryText(bySub(filtered,'cost','Indirect')), costColor);
+  setCardSummary('svg_c4', getSummaryText(byProc(filtered,'cost','Fix Cost')), costColor);
+  setCardSummary('svg_h1', getSummaryText(byMain(filtered,'hrd','%(W) Training')), hrdColor);
+  setCardSummary('svg_h2', getSummaryText(bySub(filtered,'hrd','Internal')), hrdColor);
+  setCardSummary('svg_h3', getSummaryText(bySub(filtered,'hrd','External')), hrdColor);
+  setCardSummary('svg_h4', getSummaryText(bySub(filtered,'hrd','Functional')), hrdColor);
+}
+
+/* ═══ FILTER HELPERS ═══ */
+function normalizeSearchText(value){ return String(value||'').toLowerCase().replace(/[\s_\/()-]+/g,''); }
+function byMain(recs,kpi,kw){ const key = normalizeSearchText(kw); return recs.filter(function(r){ return (r.kpi||'').toLowerCase()===kpi && (!kw || normalizeSearchText(r.main_kpi).includes(key)); }); }
+function bySub(recs,kpi,kw){ const key = normalizeSearchText(kw); return recs.filter(function(r){ return (r.kpi||'').toLowerCase()===kpi && (!kw || normalizeSearchText(r.sub_kpi).includes(key)); }); }
+function byProc(recs,kpi,kw){ const key = normalizeSearchText(kw); return recs.filter(function(r){ return (r.kpi||'').toLowerCase()===kpi && (!kw || normalizeSearchText(r.process_kpi).includes(key)); }); }
+function byEnvironmentEnergy(recs){ return recs.filter(function(r){
+  var k = (r.kpi||'').toLowerCase();
+  if (k !== 'environment') return false;
+  var main = normalizeSearchText(r.main_kpi);
+  var proc = normalizeSearchText(r.process_kpi);
+  var sub = normalizeSearchText(r.sub_kpi);
+  return main.includes('co2andenergy') || proc.includes('co2andenergy') || sub.includes('co2andenergy') ||
+         main.includes('co2energy') || proc.includes('co2energy') || sub.includes('co2energy');
+}); }
+function byHrdFunctional(recs){ return recs.filter(function(r){
+  var k = (r.kpi||'').toLowerCase();
+  if (k !== 'hrd') return false;
+  var main = normalizeSearchText(r.main_kpi);
+  var proc = normalizeSearchText(r.process_kpi);
+  var sub = normalizeSearchText(r.sub_kpi);
+  return main.includes('functionaltraining') || proc.includes('functionaltraining') || sub.includes('functionaltraining') ||
+         main.includes('wfunctionaltraining') || proc.includes('wfunctionaltraining') || sub.includes('wfunctionaltraining') ||
+         main.includes('functional') || proc.includes('functional') || sub.includes('functional');
+}); }
+
+/* ═══ GROUP BY MONTH ═══ */
+function groupByMonth(recs){
+  var map=new Map();
+  recs.forEach(function(r){
+    var d=r.record_date||'';if(!d)return;
+    var k=d.slice(0,7);
+    if(!map.has(k))map.set(k,{a:[],t:[]});
+    var g=map.get(k);
+    var av=parseFloat(r.actual),tv=parseFloat(r.target);
+    if(!isNaN(av))g.a.push(av);
+    if(!isNaN(tv))g.t.push(tv);
+  });
+  return[...map.entries()].sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(e){
+    var k=e[0],v=e[1],p=k.split('-');
+    return{label:(MS[parseInt(p[1],10)-1]||'?')+' '+p[0].slice(2),
+           actual:v.a.length?v.a[v.a.length-1]:0,
+           target:v.t.length?v.t[0]:null};
+  });
+}
+
+/* ═══ CHART RENDERER ═══
+   Uses the SVG element's actual rendered size via getBoundingClientRect
+   so the chart always fills the card regardless of window size.
+*/
+function drawChart(svgId, records, color){
+  var svg=document.getElementById(svgId);
+  if(!svg)return;
+
+  var data=groupByMonth(records);
+  if(!data.length){renderEmpty(svgId);return;}
+
+  /* get pixel size of the SVG element */
+  var box=svg.getBoundingClientRect();
+  var W=Math.max(box.width,60)||120;
+  var H=Math.max(box.height,40)||80;
+
+  var pL=22,pR=4,pT=6,pB=22;
+  var cW=W-pL-pR, cH=H-pT-pB;
+
+  var targetLine=null;
+  for(var i=0;i<data.length;i++){if(data[i].target!==null&&!isNaN(data[i].target)){targetLine=data[i].target;break;}}
+
+  var vals=data.map(function(d){return d.actual;});
+  if(targetLine!==null)vals.push(targetLine);
+  var maxVal=Math.max.apply(null,vals.filter(function(v){return!isNaN(v)&&v>0}))||1;
+  maxVal*=1.18;
+
+  var n=data.length;
+  var slotW=cW/Math.max(n,1);
+  var bW=Math.max(2,slotW*0.6);
+
+  var parts=[];
+
+  /* grid (3 horizontal lines) */
+  for(var g=1;g<=3;g++){
+    var gy=pT+cH*(1-g/3);
+    parts.push('<line x1="'+pL+'" y1="'+gy+'" x2="'+(W-pR)+'" y2="'+gy+'" stroke="#e8eaee" stroke-width="0.5"/>');
+    parts.push('<text x="'+(pL-2)+'" y="'+(gy+3)+'" text-anchor="end" font-size="6.5" fill="#9aa3b2">'+fmtNum(maxVal*g/3)+'</text>');
+  }
+
+  /* bars */
+  data.forEach(function(d,i){
+    var cx=pL+i*slotW+slotW/2;
+    var aV=isNaN(d.actual)?0:d.actual;
+    var bh=aV<=0?0.5:(aV/maxVal)*cH;
+    var by=pT+cH-bh;
+    var fill=color;
+    parts.push('<rect x="'+(cx-bW/2)+'" y="'+by+'" width="'+bW+'" height="'+bh+'" rx="1" fill="'+fill+'" opacity="0.88"/>');
+    /* value label above bar */
+    if(aV>0){
+      parts.push('<text x="'+cx+'" y="'+(by-1.5)+'" text-anchor="middle" font-size="6.5" fill="'+fill+'" font-weight="700">'+fmtNum(aV)+'</text>');
+    }
+    /* x-axis label */
+    parts.push('<text x="'+cx+'" y="'+(H-pB+11)+'" text-anchor="middle" font-size="6" fill="#9aa3b2" transform="rotate(-28,'+cx+','+(H-pB+11)+')">'+esc(d.label)+'</text>');
+  });
+
+  /* target dashed line */
+  if(targetLine!==null&&targetLine>0){
+    var ty=pT+cH-(targetLine/maxVal)*cH;
+    parts.push('<line x1="'+pL+'" y1="'+ty+'" x2="'+(W-pR)+'" y2="'+ty+'" stroke="'+color+'" stroke-width="1" stroke-dasharray="4,2" opacity="0.7"/>');
+  }
+
+  /* axes */
+  parts.push('<line x1="'+pL+'" y1="'+(pT+cH)+'" x2="'+(W-pR)+'" y2="'+(pT+cH)+'" stroke="#cfd6e0" stroke-width="1"/>');
+  parts.push('<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(pT+cH)+'" stroke="#cfd6e0" stroke-width="1"/>');
+
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('width',W);
+  svg.setAttribute('height',H);
+  svg.innerHTML=parts.join('');
+}
+
+/* ═══ HELPERS ═══ */
+function setLoading(id){
+  var el=document.getElementById(id);
+  if(el)el.innerHTML='<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#b3bac6">loading…</text>';
+}
+function renderEmpty(id){
+  var el=document.getElementById(id);
+  if(el)el.innerHTML='<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#b3bac6">No data</text>';
+}
+function setCardSummary(svgId, text){
+  var summaryId = 'summary_' + svgId;
+  var el = document.getElementById(summaryId);
+  if(!el) return;
+  el.innerHTML = text ? text : '<span>No data</span>';
+}
+function getSummaryText(records){
+  if(!records || !records.length) return '<span>No data</span>';
+  var data = groupByMonth(records);
+  if(!data.length) return '<span>No data</span>';
+  var last = data[data.length-1];
+  var actual = isFinite(last.actual) ? fmtNum(last.actual) : '0';
+  var target = (last.target !== null && isFinite(last.target)) ? fmtNum(last.target) : null;
+  if(target !== null) {
+    return '<span>' + esc(last.label) + '</span>Actual: ' + actual + ' | Target: ' + target;
+  }
+  return '<span>' + esc(last.label) + '</span>Actual: ' + actual;
+}
+function fmtNum(v){
+  if(!isFinite(v)||v===0)return'0';
+  if(v>=1000000)return(v/1000000).toFixed(1)+'M';
+  if(v>=1000)return(v/1000).toFixed(1)+'k';
+  if(v<1&&v>0)return v.toFixed(2);
+  return Math.round(v);
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+/* re-render on window resize so charts fill new size */
+var resizeTimer;
+window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){if(dataLoaded)applyFiltersAndRender();},150);});
+
+window.addEventListener('storage', function(e){
+  if (e.key === 'recordSavedAt') {
+    loadAllRecords();
+  }
+});
+
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') {
+    loadAllRecords();
+  }
+});
+
+function ensureCardSummaries(){
+  document.querySelectorAll('svg[id^="svg_"]').forEach(function(svg){
+    var parent = svg.parentNode;
+    if(parent && !parent.querySelector('.card-summary')){
+      var summary = document.createElement('div');
+      summary.className = 'card-summary';
+      summary.id = 'summary_' + svg.id;
+      summary.innerHTML = '<span>Waiting for data</span>';
+      parent.appendChild(summary);
+    }
+  });
+}
+
+/* ═══ INIT ═══ */
+// Ensure KPI clicks navigate to the page directly (nav-only)
+function handleKpiClick(kpi) {
+  try {
+    navigateTo(kpi);
+  } catch (e) {
+    console.error('navigate error', e);
+  }
+}
+
+// Attach click handlers after DOM ready
+document.addEventListener('DOMContentLoaded', function(){
+  var cols = document.querySelectorAll('.col');
+  cols.forEach(function(col){
+    var k = 'unknown';
+    if (col.classList.contains('col-safety')) k='safety';
+    if (col.classList.contains('col-env')) k='environment';
+    if (col.classList.contains('col-prod')) k='wproduction';
+    if (col.classList.contains('col-qual')) k='quality';
+    if (col.classList.contains('col-cost')) k='cost';
+    if (col.classList.contains('col-hrd')) k='hrd';
+    if (k==='unknown') return;
+    var header = col.querySelector('.col-header'); if (header) header.addEventListener('click', function(e){ e.preventDefault(); handleKpiClick(k); });
+    var cards = col.querySelectorAll('.kpi-card'); cards.forEach(function(c){ c.addEventListener('click', function(e){ e.preventDefault(); handleKpiClick(k); }); });
+  });
+  // initialize mode toggle text
+  var mt = document.getElementById('modeToggle'); if (mt){ var cur = localStorage.getItem('menuMode')||'nav'; mt.textContent='Mode: '+(cur==='nav'?'Nav':'Modal'); mt.addEventListener('click', function(){ cur = (cur==='nav'?'modal':'nav'); localStorage.setItem('menuMode', cur); mt.textContent='Mode: '+(cur==='nav'?'Nav':'Modal'); }); }
+});
+ensureCardSummaries();
+loadAllRecords();
+</script>
+</body>
+</html>

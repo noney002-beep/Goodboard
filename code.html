@@ -1,0 +1,574 @@
+/* ══════════════════════════════════════════════════════════════
+   Code.gs - GL Board Backend
+   ──────────────────────────────────────────────────────────────
+   ตั้งค่า SPREADSHEET_ID ด้านล่าง ให้ตรงกับ Google Sheet ของคุณ
+   ═══════════════════════════════════════════════════════════════ */
+
+// ⚠️ *** ตั้งค่า: แทนด้วย ID ของ Google Sheet ของคุณ **
+const SPREADSHEET_ID = '1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E';
+const DATA_SHEET_GID  = 2045278866;
+
+const SHEET_MAIN      = 'GLBoard';
+const SHEET_USERS     = 'Users_Login';
+const IMAGE_FOLDER_NAME = 'GLBoard_Mobile_Uploads';
+
+const MAIN_HEADERS = [
+  'ID', 'Emp_ID', 'Problem_Date', 'record_date', 'Kumi', 'KPI',
+  'Problem_Shift', 'Process_KPI', 'Main_KPI', 'Sub_KPI',
+  'Problem_Hour', 'Problem_Actual', 'Problem_Target',
+  'Problem_QTY', 'QTY_Unit', 'Unit_Problem', 'Problem_Time',
+  'Detail', 'Countermeasure', 'Image_Name', 'created_at',
+  'Full_Name', 'Role_User',
+  'Row_Key', 'SQL_Synced', 'Sync_Note',
+];
+
+const USER_HEADERS = [
+  'Emp_ID', 'First_Name', 'Last_Name', 'Username', 'Password_Hash', 'Salt',
+  'Role', 'Kumi', 'Shift',
+];
+
+/* ════════════════════════════════════
+   ROUTER - doGet (แสดงหน้าเว็บ)
+   ════════════════════════════════════ */
+function doGet(e) {
+  const page = (e && e.parameter && e.parameter.page) || 'login';
+  const baseUrl = ScriptApp.getService().getUrl();
+
+  let htmlFile;
+  try {
+    const templateName = resolveTemplateName(page);
+    htmlFile = HtmlService.createTemplateFromFile(templateName);
+    htmlFile.baseUrl = baseUrl;
+    htmlFile.include = function(filename) {
+      return HtmlService.createHtmlOutputFromFile(filename).getContent();
+    };
+    const output = htmlFile.evaluate();
+    if (!output.getContent().trim()) {
+      throw new Error('Template ว่าง: ' + templateName + '.html');
+    }
+    return output
+      .setTitle('(W) GL Board - Mobile')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch(err) {
+    return HtmlService.createHtmlOutput(
+      '<div style="padding:20px;color:red;font-family:monospace;background:#fff0f0;border:1px solid red;border-radius:8px;">' +
+      '<strong>❌ Error:</strong> ' + escapeHtml_(err.message) + '<br>' +
+      'ตรวจสอบให้แน่ใจว่ามีไฟล์ HTML ชื่อ: ' + page + '.html<br>' +
+      'และ SPREADSHEET_ID ตั้งค่าถูกต้อง</div>'
+    );
+  }
+}
+
+function escapeHtml_(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function resolveTemplateName(page) {
+  const raw = String(page || 'login').trim().replace(/\.html$/i, '');
+  const normalized = raw.toLowerCase();
+  const pageMap = {
+    login: 'login',
+    menu: 'menu',
+    form: 'form',
+    history: 'history',
+    safety: 'safety',
+    environment: 'Enviroment',
+    eviroment: 'Enviroment',
+    quality: 'Quality',
+    cost: 'cost',
+    hrd: 'hrd',
+    wproduction: 'Wproduction',
+    production: 'Wproduction',
+    dashboard: 'dashboard',
+  };
+
+  if (pageMap[normalized]) {
+    return pageMap[normalized];
+  }
+
+  const candidates = [raw, raw.charAt(0).toUpperCase() + raw.slice(1), raw.toLowerCase(), raw.toUpperCase()];
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      HtmlService.createTemplateFromFile(candidates[i]);
+      return candidates[i];
+    } catch (e) {
+      // ignore and try next candidate
+    }
+  }
+
+  return 'Login';
+}
+
+function include(filename) {
+  try {
+    return HtmlService.createTemplateFromFile(filename).evaluate().getContent();
+  } catch (err) {
+    return '<!-- include failed: ' + filename + ' -->';
+  }
+}
+
+/* ════════════════════════════════════
+   ROUTER - doPost (API handler)
+   ════════════════════════════════════ */
+function doPost(e) {
+  let body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return jsonOutput_({ ok: false, msg: '❌ ข้อมูลที่ส่งมาไม่ถูกต้อง' });
+  }
+
+  const action = body.action;
+  const args = body.args || [];
+
+  try {
+    let result;
+    switch (action) {
+      case 'loginUser':
+        result = loginUser(args[0], args[1]);
+        break;
+      case 'submitRecord':
+        result = submitRecord(args[0]);
+        break;
+      case 'getHistoryRecords':
+        result = getHistoryRecords(args[0]);
+        break;
+      case 'getRecordDetail':
+        result = getRecordDetail(args[0]);
+        break;
+      case 'getMonitoringData':
+        result = getMonitoringData(args[0]);
+        break;
+      default:
+        result = { ok: false, msg: '❌ ไม่รู้จักคำสั่ง: ' + action };
+    }
+    return jsonOutput_(result);
+  } catch (err) {
+    return jsonOutput_({ ok: false, msg: '❌ Server error: ' + err.message });
+  }
+}
+
+function jsonOutput_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ════════════════════════════════════
+   SHEET HELPERS
+   ════════════════════════════════════ */
+function getSheet_(name, headers) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+    return sh;
+  }
+  const lastCol = Math.max(sh.getLastColumn(), headers.length);
+  const currentHeader = lastCol > 0 ? sh.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  const matches = headers.every((h, i) => currentHeader[i] === h);
+  if (!matches) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  return sh;
+}
+
+function getMainDataSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === DATA_SHEET_GID) return sheets[i];
+  }
+  return getSheet_(SHEET_MAIN, MAIN_HEADERS);
+}
+
+function readSheetRows_(sh) {
+  const values = sh.getDataRange().getValues();
+  if (!values.length) return { headers: [], rows: [] };
+  let headerIndex = 0;
+  const scanLimit = Math.min(values.length, 10);
+  for (let i = 0; i < scanLimit; i++) {
+    const normalized = values[i].map(h => normalizeHeader_(h));
+    const known = normalized.filter(h => ['KPI', 'Kumi', 'Main_KPI', 'Sub_KPI', 'Process_KPI', 'Problem_Date', 'record_date'].includes(h));
+    if (known.length >= 2) {
+      headerIndex = i;
+      break;
+    }
+  }
+  const headers = values[headerIndex].map(h => normalizeHeader_(h));
+  return { headers, rows: values.slice(headerIndex + 1).filter(row => row.some(value => String(value || '').trim() !== '')) };
+}
+
+function normalizeHeader_(header) {
+  const original = String(header || '').replace(/^\uFEFF/, '').trim();
+  const key = original.toLowerCase().replace(/[\s_\/-]+/g, '');
+  const aliases = {
+    id: 'ID', employeeid: 'Emp_ID', empid: 'Emp_ID',
+    problemdate: 'Problem_Date', date: 'Problem_Date',
+    recorddate: 'record_date', datetime: 'record_date', kumi: 'Kumi', kumisubkumi: 'Kumi', kpi: 'KPI', kpitype: 'KPI',
+    problemshift: 'Problem_Shift', shift: 'Problem_Shift',
+    processkpi: 'Process_KPI', mainkpi: 'Main_KPI', mainkpiimpact: 'Main_KPI', subkpi: 'Sub_KPI', subkpiimpact: 'Sub_KPI',
+    problemtimehr: 'Problem_Time', problemtime: 'Problem_Time', problemhour: 'Problem_Hour', problemactual: 'Problem_Actual', actual: 'Problem_Actual',
+    problemtarget: 'Problem_Target', target: 'Problem_Target',
+    problemqty: 'Problem_QTY', qty: 'Problem_QTY', qtyunit: 'QTY_Unit',
+    unitproblem: 'Unit_Problem', problemtime: 'Problem_Time',
+    detail: 'Detail', problem: 'Detail', countermeasure: 'Countermeasure',
+    imagename: 'Image_Name', image: 'Image_Name', createdat: 'created_at',
+    fullname: 'Full_Name', roleuser: 'Role_User', role: 'Role_User',
+    rowkey: 'Row_Key', sqlsynced: 'SQL_Synced', syncnote: 'Sync_Note',
+  };
+  return aliases[key] || original;
+}
+
+function normalizeKpi_(value) {
+  const key = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const aliases = {
+    safety: 'safety',
+    environment: 'environment',
+    enviroment: 'environment',
+    environmental: 'environment',
+    quality: 'quality',
+    production: 'production',
+    wproduction: 'production',
+    cost: 'cost',
+    hrd: 'hrd',
+    humanresourcedevelopment: 'hrd',
+  };
+  return aliases[key] || String(value || '').trim().toLowerCase();
+}
+
+function normalizeDate_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const iso = text.match(/^(\d{4})[-\/]?(\d{1,2})[-\/]?(\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const parsed = new Date(text);
+  return isNaN(parsed.getTime())
+    ? text
+    : Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function appendMappedRow_(sh, row) {
+  const headerValues = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const headers = headerValues.map(h => normalizeHeader_(h));
+  sh.appendRow(headers.map(header => row[header] === undefined ? '' : row[header]));
+}
+
+function getUploadFolder_() {
+  const it = DriveApp.getFoldersByName(IMAGE_FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(IMAGE_FOLDER_NAME);
+}
+
+/* ════════════════════════════════════
+   AUTH - User Profile
+   ════════════════════════════════════ */
+function findUserRow_(sh, field, value) {
+  const values = sh.getDataRange().getValues();
+  const headers = values[0];
+  const col = headers.indexOf(field);
+  if (col === -1) return null;
+  
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][col]).trim().toLowerCase() === String(value).trim().toLowerCase()) {
+      const o = {};
+      headers.forEach((h, j) => o[h] = values[i][j]);
+      return { rowNum: i + 1, data: o };
+    }
+  }
+  return null;
+}
+
+function getUserProfile_(username) {
+  const sh = getSheet_(SHEET_USERS, USER_HEADERS);
+  const found = findUserRow_(sh, 'Username', username);
+  if (!found) return null;
+  const d = found.data;
+  return {
+    Emp_ID: d.Emp_ID,
+    Full_Name: `${d.First_Name} ${d.Last_Name}`.trim(),
+    Kumi: d.Kumi || '',
+    Shift: d.Shift || '',
+    Role: d.Role || 'User',
+  };
+}
+
+function hashPassword_(password, salt) {
+  const raw = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    password + '::' + salt,
+    Utilities.Charset.UTF_8
+  );
+  return raw.map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('');
+}
+
+function loginUser(username, password) {
+  username = String(username || '').trim();
+  password = String(password || '');
+  if (!username || !password) return { ok: false, msg: '⚠️ กรุณากรอก Username และ Password' };
+
+  const sh = getSheet_(SHEET_USERS, USER_HEADERS);
+  const found = findUserRow_(sh, 'Username', username);
+  if (!found) return { ok: false, msg: '❌ ไม่พบบัญชีผู้ใช้นี้' };
+
+  const hash = hashPassword_(password, found.data.Salt);
+  if (hash !== found.data.Password_Hash) {
+    return { ok: false, msg: '❌ Password ไม่ถูกต้อง' };
+  }
+
+  const fullName = `${found.data.First_Name} ${found.data.Last_Name}`.trim();
+
+  return {
+    ok: true,
+    msg: '✅ เข้าสู่ระบบสำเร็จ',
+    user: {
+      Emp_ID: found.data.Emp_ID,
+      First_Name: found.data.First_Name,
+      Last_Name: found.data.Last_Name,
+      Full_Name: fullName,
+      Username: found.data.Username,
+      Role: found.data.Role || 'User',
+      Kumi: found.data.Kumi || '',
+      Shift: found.data.Shift || '',
+    },
+  };
+}
+
+/* ════════════════════════════════════
+   SUBMIT RECORD
+   ════════════════════════════════════ */
+function submitRecord(payload) {
+  // Accept payload as-is and do NOT validate against Users_Login.
+  // Always build a profile from provided fields or use safe defaults.
+  payload = payload || {};
+  const profile = {
+    Emp_ID: String(payload.Emp_ID || '').trim(),
+    Full_Name: String(payload.Full_Name || '').trim(),
+    Kumi: String(payload.Kumi || '').trim(),
+    Shift: String(payload.Problem_Shift || payload.Shift || '').trim(),
+    Role: String(payload.Role_User || payload.Role || 'User').trim(),
+  };
+  
+  if (!payload.Detail || !payload.Detail.trim()) {
+    return { ok: false, msg: '⚠️ กรุณาใส่รายละเอียดปัญหา' };
+  }
+
+  const sh = getMainDataSheet_();
+  const rowKey = String(payload.Row_Key || Utilities.getUuid()).trim();
+  const now = new Date();
+  const tz = Session.getScriptTimeZone();
+  if (!payload.Problem_Date || !String(payload.Problem_Date).trim()) {
+    payload.Problem_Date = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  }
+
+  let imageUrl = '';
+  if (payload.Image_Base64 && payload.Image_MimeType) {
+    try {
+      const blob = Utilities.newBlob(
+        Utilities.base64Decode(payload.Image_Base64),
+        payload.Image_MimeType,
+        `${rowKey}_${payload.Image_FileName || 'photo.jpg'}`
+      );
+      const file = getUploadFolder_().createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      imageUrl = file.getUrl();
+    } catch (err) {
+      imageUrl = '';
+    }
+  }
+
+  appendMappedRow_(sh, {
+    ID: '',
+    Emp_ID: profile.Emp_ID,
+    Problem_Date: payload.Problem_Date || '',
+    record_date: Utilities.formatDate(now, tz, 'yyyy-MM-dd'),
+    Kumi: profile.Kumi,
+    KPI: payload.KPI || '',
+    Problem_Shift: profile.Shift || '',
+    Process_KPI: payload.Process_KPI || '',
+    Main_KPI: payload.Main_KPI || '',
+    Sub_KPI: payload.Sub_KPI || '',
+    Problem_Hour: payload.Problem_Hour || '',
+    Problem_Actual: payload.Problem_Actual || payload.Actual || '',
+    Problem_Target: payload.Problem_Target || payload.Target || '',
+    Problem_QTY: payload.Problem_QTY || '',
+    QTY_Unit: payload.QTY_Unit || '',
+    Unit_Problem: payload.Unit_Problem || '',
+    Problem_Time: payload.Problem_Time || '',
+    Detail: payload.Detail || '',
+    Countermeasure: payload.Countermeasure || '',
+    Image_Name: imageUrl,
+    created_at: Utilities.formatDate(now, tz, 'yyyy-MM-dd HH:mm:ss'),
+    Full_Name: profile.Full_Name,
+    Role_User: profile.Role,
+    Row_Key: rowKey,
+    SQL_Synced: 'FALSE',
+    Sync_Note: '⏳ รอ sync',
+  });
+
+  return {
+    ok: true,
+    msg: '✅ บันทึกสำเร็จ',
+    row_key: rowKey,
+  };
+}
+
+/* ════════════════════════════════════
+   GET HISTORY
+   ════════════════════════════════════ */
+function getHistoryRecords(filters) {
+  filters = filters || {};
+  const data = readSheetRows_(getMainDataSheet_());
+  if (data.rows.length < 1) return { records: [], total: 0, page: 1, pages: 1, stats: [] };
+
+  const headers = data.headers;
+  let rows = data.rows.map(r => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = r[i]);
+    return o;
+  });
+
+  if (filters.kpi) rows = rows.filter(r => r.KPI === filters.kpi);
+  if (filters.shift) rows = rows.filter(r => r.Problem_Shift === filters.shift);
+  if (filters.search) {
+    const s = filters.search.toLowerCase();
+    rows = rows.filter(r =>
+      String(r.Kumi || '').toLowerCase().includes(s) ||
+      String(r.Detail || '').toLowerCase().includes(s) ||
+      String(r.Full_Name || '').toLowerCase().includes(s)
+    );
+  }
+
+  const statsMap = {};
+  rows.forEach(r => { statsMap[r.KPI] = (statsMap[r.KPI] || 0) + 1; });
+  const stats = Object.keys(statsMap).map(k => ({ kpi: k, cnt: statsMap[k] }));
+
+  const sortCol = filters.sort_col || 'record_date';
+  const sortDir = (filters.sort_dir || 'desc').toLowerCase();
+  rows.sort((a, b) => {
+    const av = String(a[sortCol] || ''), bv = String(b[sortCol] || '');
+    return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  const total = rows.length;
+  const perPage = filters.per_page || 8;
+  const page = filters.page || 1;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const start = (page - 1) * perPage;
+  const pageRows = rows.slice(start, start + perPage);
+
+  pageRows.forEach(r => {
+    r.Identity_Label = `${r.Full_Name || '-'} (${r.Kumi || '-'} / ${r.Problem_Shift || '-'})`;
+  });
+
+  return { records: pageRows, total, page, pages, stats };
+}
+
+function getRecordDetail(rowKey) {
+  const data = readSheetRows_(getMainDataSheet_());
+  if (!data.rows.length) return { record: null };
+  const headers = data.headers;
+  for (let i = 0; i < data.rows.length; i++) {
+    const o = {};
+    headers.forEach((h, j) => o[h] = data.rows[i][j]);
+    if (String(o.Row_Key) === String(rowKey)) {
+      o.Identity_Label = `${o.Full_Name || '-'} (${o.Kumi || '-'} / ${o.Problem_Shift || '-'})`;
+      return { record: o };
+    }
+  }
+  return { record: null };
+}
+
+/* ════════════════════════════════════
+   GET MONITORING DATA (สำหรับ Production)
+   ════════════════════════════════════ */
+function getMonitoringData(filters) {
+  filters = filters || {};
+  const data = readSheetRows_(getMainDataSheet_());
+  if (!data.rows.length) return { records: [], pages: 1, total: 0 };
+
+  const headers = data.headers;
+  let rows = data.rows.map(r => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = r[i]);
+    return {
+      kpi: normalizeKpi_(o.KPI),
+      record_date: normalizeDate_(o.record_date || o.Problem_Date),
+      problem_date: normalizeDate_(o.Problem_Date || o.record_date),
+      kumi: o.Kumi || '',
+      process_kpi: o.Process_KPI || '',
+      main_kpi: o.Main_KPI || '',
+      sub_kpi: o.Sub_KPI || '',
+      shift: o.Problem_Shift || '',
+      actual: Number(o.Problem_Actual || o.Actual || 0),
+      target: Number(o.Problem_Target || o.Target || 0),
+      unit: o.QTY_Unit || o.Unit_Problem || '',
+      unit_problem: o.Unit_Problem || o.QTY_Unit || '',
+      detail: o.Detail || '',
+      problem_detail: o.Detail || '',
+      problem_time: o.Problem_Time || '',
+      problem_hour: o.Problem_Hour || '',
+      countermeasure: o.Countermeasure || '',
+      row_key: o.Row_Key || '',
+    };
+  });
+
+  if (filters.kpi === 'production') {
+    rows = rows.filter(r => (r.kpi || '').toLowerCase() === 'production');
+  }
+
+  const total = rows.length;
+  const page = filters.page || 1;
+  const per_page = filters.per_page || 200;
+  const pages = Math.max(1, Math.ceil(total / per_page));
+  const start = (page - 1) * per_page;
+  const pageRows = rows.slice(start, start + per_page);
+
+  return { records: pageRows, total, pages, page };
+}
+
+/* ════════════════════════════════════
+   ADMIN - onOpen Menu
+   ════════════════════════════════════ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('GL Board Admin')
+    .addItem('➕ เพิ่มผู้ใช้ใหม่', 'addUserPrompt_')
+    .addToUi();
+}
+
+function addUserPrompt_() {
+  const ui = SpreadsheetApp.getUi();
+
+  const prompts = [
+    { msg: 'รหัสพนักงาน (Emp ID):', field: 'empId' },
+    { msg: 'First Name:', field: 'first' },
+    { msg: 'Last Name:', field: 'last' },
+    { msg: 'Username:', field: 'username' },
+    { msg: 'Password:', field: 'password' },
+    { msg: 'Kumi (ตำแหน่ง):', field: 'kumi' },
+    { msg: 'Shift (กะ):', field: 'shift' },
+  ];
+
+  const data = {};
+  for (let i = 0; i < prompts.length; i++) {
+    const r = ui.prompt(`เพิ่มผู้ใช้ (${i+1}/${prompts.length})`, prompts[i].msg, ui.ButtonSet.OK_CANCEL);
+    if (r.getSelectedButton() !== ui.Button.OK) return;
+    data[prompts[i].field] = r.getResponseText().trim();
+  }
+
+  const sh = getSheet_(SHEET_USERS, USER_HEADERS);
+  if (findUserRow_(sh, 'Username', data.username)) {
+    ui.alert('❌ Username นี้มีอยู่แล้ว');
+    return;
+  }
+
+  const salt = Utilities.getUuid();
+  const hash = hashPassword_(data.password, salt);
+  sh.appendRow([data.empId, data.first, data.last, data.username, hash, salt, 'User', data.kumi, data.shift]);
+
+  ui.alert('✅ เพิ่มผู้ใช้ "' + data.username + '" สำเร็จ (Kumi: ' + data.kumi + ' / Shift: ' + data.shift + ')');
+}

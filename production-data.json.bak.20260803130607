@@ -1,0 +1,30 @@
+[
+  {
+    "Row_Key": "rk-1",
+    "KPI": "Production",
+    "Kumi": "A",
+    "Detail": "Machine A output low",
+    "Full_Name": "Somchai S",
+    "Problem_Actual": "90 units",
+    "Problem_Target": "120 units",
+    "Main_KPI": "Output",
+    "Sub_KPI": "Speed",
+    "Process_KPI": "Assembly",
+    "Problem_Shift": "day",
+    "created_at": "2026-08-01 08:12:00"
+  },
+  {
+    "Row_Key": "rk-2",
+    "KPI": "Production",
+    "Kumi": "B",
+    "Detail": "Material shortage",
+    "Full_Name": "Mana M",
+    "Problem_Actual": "delayed",
+    "Problem_Target": "on-time",
+    "Main_KPI": "Supply",
+    "Sub_KPI": "Inventory",
+    "Process_KPI": "Receiving",
+    "Problem_Shift": "night",
+    "created_at": "2026-08-02 01:24:00"
+  }
+]

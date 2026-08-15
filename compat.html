@@ -1,0 +1,160 @@
+<script>
+(function(){
+  if (typeof String.prototype.includes !== 'function') {
+    String.prototype.includes = function(search, start) {
+      if (start === undefined) start = 0;
+      return this.indexOf(search, start) !== -1;
+    };
+  }
+
+  if (typeof Array.prototype.includes !== 'function') {
+    Array.prototype.includes = function(valueToFind, fromIndex) {
+      if (this == null) throw new TypeError('Array.prototype.includes called on null or undefined');
+      var o = Object(this);
+      var len = parseInt(o.length, 10) || 0;
+      if (len === 0) return false;
+      var n = parseInt(fromIndex, 10) || 0;
+      var k = Math.max(n >= 0 ? n : len + n, 0);
+      while (k < len) {
+        if (o[k] === valueToFind || (typeof valueToFind === 'number' && typeof o[k] === 'number' && isNaN(valueToFind) && isNaN(o[k]))) {
+          return true;
+        }
+        k++;
+      }
+      return false;
+    };
+  }
+
+  if (typeof Object.assign !== 'function') {
+    Object.assign = function(target) {
+      if (target == null) throw new TypeError('Cannot convert undefined or null to object');
+      var to = Object(target);
+      for (var i = 1; i < arguments.length; i++) {
+        var nextSource = arguments[i];
+        if (nextSource != null) {
+          for (var nextKey in nextSource) {
+            if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+              to[nextKey] = nextSource[nextKey];
+            }
+          }
+        }
+      }
+      return to;
+    };
+  }
+
+  if (typeof NodeList !== 'undefined' && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = Array.prototype.forEach;
+  }
+
+  if (typeof window.URLSearchParams !== 'function') {
+    window.URLSearchParams = function(init) {
+      this.map = {};
+      if (!init) return;
+      if (typeof init === 'string') {
+        var query = init.charAt(0) === '?' ? init.substring(1) : init;
+        query.split('&').forEach(function(part) {
+          if (!part) return;
+          var pair = part.split('=');
+          var key = decodeURIComponent(pair[0].replace(/\+/g, ' '));
+          var value = pair.length > 1 ? decodeURIComponent(pair[1].replace(/\+/g, ' ')) : '';
+          if (!this.map[key]) this.map[key] = [];
+          this.map[key].push(value);
+        }, this);
+      } else if (typeof init === 'object') {
+        for (var key in init) {
+          if (Object.prototype.hasOwnProperty.call(init, key)) {
+            this.map[key] = [String(init[key])];
+          }
+        }
+      }
+    };
+    URLSearchParams.prototype.get = function(name) {
+      var values = this.map[name];
+      return values ? values[0] : null;
+    };
+    URLSearchParams.prototype.has = function(name) {
+      return Object.prototype.hasOwnProperty.call(this.map, name);
+    };
+    URLSearchParams.prototype.toString = function() {
+      var parts = [];
+      for (var key in this.map) {
+        if (!Object.prototype.hasOwnProperty.call(this.map, key)) continue;
+        this.map[key].forEach(function(value) {
+          parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+        });
+      }
+      return parts.join('&');
+    };
+  }
+
+  if (typeof window.fetch !== 'function') {
+    window.fetch = function(url, options) {
+      options = options || {};
+      return new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(options.method || 'GET', url, true);
+        if (options.headers) {
+          for (var header in options.headers) {
+            if (Object.prototype.hasOwnProperty.call(options.headers, header)) {
+              xhr.setRequestHeader(header, options.headers[header]);
+            }
+          }
+        }
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          var headers = {};
+          xhr.getAllResponseHeaders().trim().split(/\r?\n/).forEach(function(line) {
+            var parts = line.split(': ');
+            if (parts.length === 2) headers[parts[0].toLowerCase()] = parts[1];
+          });
+          var response = {
+            ok: (xhr.status >= 200 && xhr.status < 300) || xhr.status === 0,
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers: headers,
+            url: url,
+            text: function() { return Promise.resolve(xhr.responseText); },
+            json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); },
+          };
+          resolve(response);
+        };
+        xhr.onerror = function() { reject(new TypeError('Network request failed')); };
+        xhr.ontimeout = function() { reject(new TypeError('Network request failed')); };
+        if (options.body) xhr.send(options.body);
+        else xhr.send();
+      });
+    };
+  }
+
+  if (typeof window.btoa !== 'function') {
+    window.btoa = function(input) {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+      var str = String(input);
+      var output = '';
+      for (var block = 0, charCode, idx = 0, map = chars; str.charAt(idx | 0) || (map = '=', idx % 1);
+           output += map.charAt(63 & block >> 8 - idx % 1 * 8)) {
+        charCode = str.charCodeAt(idx += 3/4);
+        if (charCode > 0xFF) throw new Error('Invalid character');
+        block = block << 8 | charCode;
+      }
+      return output;
+    };
+  }
+
+  if (typeof window.atob !== 'function') {
+    window.atob = function(input) {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+      var str = String(input).replace(/=+$/, '');
+      if (str.length % 4 === 1) throw new Error('InvalidCharacterError');
+      var output = '';
+      for (var bc = 0, bs, buffer, idx = 0; buffer = str.charAt(idx++);
+           ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ?
+             output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
+        buffer = chars.indexOf(buffer);
+      }
+      return output;
+    };
+  }
+})();
+</script>

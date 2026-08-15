@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>(W) ประวัติการบันทึกปัญหา</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --maroon: #7e4f51; --maroon-light: #a06f71; --maroon-faint: #faf1f2; --maroon-subtle: #f2dcdd;
+      --bg-off-white: #f8f9fa; --border: #d5b3b4; --text: #1a1a1a; --text-muted: #666; --label: #5f2f30;
+      --radius: 6px; --font: "IBM Plex Sans Thai", sans-serif; --mono: "IBM Plex Mono", monospace; --header-h: 46px;
+    }
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg-off-white); font-family: var(--font); color: var(--text); }
+    .app { display: flex; flex-direction: column; height: 100dvh; width: 100%; }
+    .header { background: var(--maroon); color: #fff; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: var(--header-h); flex-shrink: 0; box-shadow: 0 2px 6px rgba(128,0,0,.35); }
+    .header h1 { font-size: clamp(13px, 2vw, 18px); font-weight: 700; flex: 1; }
+    .toolbar { background: #fff; border-bottom: 1.5px solid var(--border); padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; flex-shrink: 0; }
+    .search-wrap { position: relative; flex: 1; min-width: 160px; }
+    .search-wrap input { width: 100%; font-family: var(--font); font-size: 13px; border: 1.5px solid var(--border); border-radius: var(--radius); padding: 6px 10px; outline: none; background: var(--bg-off-white); }
+    .filter-sel { font-family: var(--font); font-size: 12px; border: 1.5px solid var(--border); border-radius: var(--radius); padding: 6px 9px; outline: none; background: var(--bg-off-white); color: var(--text); }
+    .stats-bar { display: flex; gap: 8px; padding: 7px 12px; background: var(--maroon-faint); border-bottom: 1px solid var(--maroon-subtle); flex-shrink: 0; overflow-x: auto; min-height: 38px; align-items: center; }
+    .stat-chip { display: flex; align-items: center; gap: 5px; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 3px 11px; font-size: 11px; font-weight: 600; color: var(--label); white-space: nowrap; flex-shrink: 0; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--maroon); }
+    .table-area { flex: 1; overflow: auto; padding: 10px 12px; min-height: 0; }
+    .rec-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; cursor: pointer; }
+    .rec-card-header { background: var(--maroon-faint); border-bottom: 1px solid var(--maroon-subtle); padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+    .badge-Safety { background: #fde8e8; color: #c0392b; }
+    .badge-Environment { background: #e8f8ed; color: #1e8449; }
+    .badge-Quality { background: #e8f3fd; color: #1a5276; }
+    .badge-Production { background: #fef9e7; color: #9a6c00; }
+    .badge-Cost { background: #f4ecfd; color: #6c3483; }
+    .badge-HRD { background: #e8f8f5; color: #0e6655; }
+    .rec-card-body { padding: 8px 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; font-size: 12px; }
+    .rec-field-label { font-size: 9px; font-weight: 700; color: var(--label); text-transform: uppercase; }
+    .rec-card-detail { padding: 4px 10px 8px; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: var(--text-muted); }
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-top: 1px solid var(--border); background: #fff; flex-shrink: 0; flex-wrap: wrap; gap: 7px; }
+    .page-info { font-size: 12px; color: var(--text-muted); }
+    .page-btns { display: flex; gap: 4px; }
+    .page-btn { font-family: var(--mono); font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); background: #fff; color: var(--maroon); border-radius: 4px; width: 30px; height: 28px; cursor: pointer; }
+    .page-btn.active { background: var(--maroon); color: #fff; }
+    .page-btn:disabled { opacity: .35; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: none; align-items: center; justify-content: center; padding: 16px; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 10px; width: 100%; max-width: 580px; max-height: 90dvh; overflow-y: auto; }
+    .modal-header { background: var(--maroon); color: #fff; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-radius: 10px 10px 0 0; }
+    .modal-close { background: rgba(255,255,255,.2); border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; color: #fff; }
+    .modal-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 12px; }
+    .mf { display: flex; flex-direction: column; gap: 2px; }
+    .mf-label { font-size: 10px; font-weight: 700; color: var(--label); text-transform: uppercase; }
+    .mf-value { font-size: 13px; }
+    .modal-textarea { background: var(--bg-off-white); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; font-size: 12px; line-height: 1.6; min-height: 50px; }
+    .modal-img { width: 100%; border-radius: var(--radius); border: 1px solid var(--border); max-height: 200px; object-fit: cover; cursor: pointer; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--maroon); color: #fff; padding: 10px 22px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 999; transition: transform .3s; pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 style="flex:1">ประวัติการบันทึกปัญหา</h1>
+      <div style="display:flex;gap:8px;">
+        <a id="backToMenuBtn" href="menu.html" style="background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:6px 10px;font-size:11px;display:inline-flex;align-items:center;text-decoration:none;">⬅ กลับเมนู</a>
+        <button onclick="goForm()" style="background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;">+ บันทึกใหม่</button>
+        <button onclick="doLogout()" style="background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="ค้นหา..." oninput="debounceFilter()" />
+      </div>
+      <select class="filter-sel" id="filterKPI" onchange="doFilter()">
+        <option value="">KPI ทั้งหมด</option>
+        <option>Safety</option><option>Environment</option><option>Quality</option>
+        <option>Production</option><option>Cost</option><option>HRD</option>
+      </select>
+      <select class="filter-sel" id="filterShift" onchange="doFilter()">
+        <option value="">Shift ทั้งหมด</option><option>White</option><option>Yellow</option>
+      </select>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-chip"><span class="dot"></span>กำลังโหลด…</div>
+    </div>
+
+    <div class="table-area" id="tableArea">
+      <div id="mobileCards"></div>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <p>ไม่พบข้อมูล</p>
+      </div>
+    </div>
+
+    <div class="pagination">
+      <span class="page-info" id="pageInfo">กำลังโหลด…</span>
+      <div class="page-btns" id="pageBtns"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">รายละเอียด</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let BASE_URL = '';
+    try {
+      if (typeof APP !== 'undefined' && APP && typeof APP.initAppState === 'function') {
+        BASE_URL = APP.initAppState();
+      }
+    } catch (e) {
+      console.warn('APP initialization failed:', e.message);
+    }
+    let CURRENT_USER = null;
+    let currentPage = 1, totalPages = 1, debounceTimer = null;
+
+    function getEndpoint() {
+      return (typeof BASE_URL === 'string' && BASE_URL) ? BASE_URL : '/api';
+    }
+
+    function safeNavigate(url) {
+      if (typeof APP !== 'undefined' && APP && typeof APP.safeNavigate === 'function') {
+        try { APP.safeNavigate(url); return; } catch (e) {}
+      }
+      window.location.href = url;
+    }
+
+    function buildPageHref(page) {
+      if (typeof APP !== 'undefined' && APP && typeof APP.buildPageHref === 'function') {
+        try { return APP.buildPageHref(page); } catch (e) {}
+      }
+      return page + '.html';
+    }
+
+    function loadStoredUser() {
+      try {
+        CURRENT_USER = JSON.parse(localStorage.getItem('glboard_user') || 'null');
+      } catch (e) { CURRENT_USER = null; }
+      if ((!CURRENT_USER || !CURRENT_USER.Username) && typeof APP !== 'undefined' && APP && typeof APP.restoreUserFromUrl === 'function') {
+        try { APP.restoreUserFromUrl(); } catch (e) {}
+        try {
+          CURRENT_USER = JSON.parse(localStorage.getItem('glboard_user') || 'null');
+        } catch (e) { CURRENT_USER = null; }
+      }
+      return CURRENT_USER && CURRENT_USER.Username ? CURRENT_USER : null;
+    }
+
+    (function authGuard() {
+      const u = loadStoredUser();
+      if (!u) {
+        const loginUrl = getEndpoint() ? (getEndpoint() + '?page=login') : 'login.html';
+        safeNavigate(loginUrl);
+        return;
+      }
+      loadPage(1);
+    })();
+
+    function goForm() {
+      if (!CURRENT_USER) { safeNavigate(getEndpoint() ? (getEndpoint() + '?page=login') : 'login.html'); return; }
+      const target = buildPageHref('form');
+      safeNavigate(target);
+    }
+
+    function doLogout() {
+      try {
+        CURRENT_USER = null;
+        if (typeof APP !== 'undefined' && APP && typeof APP.logout === 'function') {
+          APP.logout();
+          return;
+        }
+      } catch (e) {}
+      try { localStorage.removeItem('glboard_user'); } catch (e) {}
+      safeNavigate(getEndpoint() ? (getEndpoint() + '?page=login') : 'login.html');
+    }
+
+    function getDataUrl() {
+      try {
+        const endpoint = getEndpoint();
+        const url = new URL(endpoint, window.location.href);
+        url.pathname = url.pathname.replace(/\/api\/?$/i, '/production-data.json');
+        return url.toString();
+      } catch (e) {
+        return 'production-data.json';
+      }
+    }
+
+    async function fetchLocalRecords() {
+      try {
+        const resp = await fetch(getDataUrl(), { cache: 'no-store' });
+        const data = resp.ok ? await resp.json() : [];
+        const records = Array.isArray(data) ? data : [];
+        const pending = loadPendingRecords();
+        return records.concat(pending);
+      } catch (e) {
+        console.warn('Local fallback failed:', e.message);
+        return loadPendingRecords();
+      }
+    }
+
+    function loadPendingRecords() {
+      try {
+        const stored = localStorage.getItem('glboard_pending_records');
+        const pending = stored ? JSON.parse(stored) : [];
+        return Array.isArray(pending) ? pending : [];
+      } catch (e) {
+        console.warn('Failed to load pending records:', e.message);
+        return [];
+      }
+    }
+
+    async function loadHistoryFromLocal(filters) {
+      const rows = await fetchLocalRecords();
+      const search = String(filters.search || '').trim().toLowerCase();
+      const kpiFilter = String(filters.kpi || '').trim().toLowerCase();
+      const shiftFilter = String(filters.shift || '').trim().toLowerCase();
+      const filtered = rows.filter((row) => {
+        if (kpiFilter && String(row.KPI || row.kpi || '').trim().toLowerCase() !== kpiFilter) return false;
+        if (shiftFilter && String(row.Problem_Shift || row.shift || row.Shift || '').trim().toLowerCase() !== shiftFilter) return false;
+        if (search) {
+          const hay = [
+            row.Kumi, row.Detail, row.Full_Name, row.Problem_Actual, row.Problem_Target, row.Main_KPI, row.Sub_KPI, row.Process_KPI
+          ].map((v) => String(v || '').toLowerCase()).join(' ');
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+      const sorted = filtered.slice().sort((a, b) => {
+        const va = String(a.record_date || a.Problem_Date || '').toLowerCase();
+        const vb = String(b.record_date || b.Problem_Date || '').toLowerCase();
+        return vb.localeCompare(va);
+      });
+      const total = sorted.length;
+      const per_page = Number(filters.per_page) || 8;
+      const page = Math.max(1, Number(filters.page) || 1);
+      const pages = Math.max(1, Math.ceil(total / per_page));
+      const start = (page - 1) * per_page;
+      const pageRows = sorted.slice(start, start + per_page);
+      const stats = {};
+      filtered.forEach((row) => {
+        const kpi = String(row.KPI || row.kpi || '').trim() || 'Unknown';
+        stats[kpi] = (stats[kpi] || 0) + 1;
+      });
+      return {
+        records: pageRows,
+        pages,
+        page,
+        total,
+        stats: Object.keys(stats).map((k) => ({ kpi: k, cnt: stats[k] })),
+      };
+    }
+
+    function callServer(action, args) {
+      const endpoint = getEndpoint();
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({ action: action, args: args || [] }),
+      }).then(async (r) => {
+        const text = await r.text();
+        let json;
+        try {
+          json = text ? JSON.parse(text) : {};
+        } catch (e) {
+          throw new Error('Invalid JSON response from server');
+        }
+        if (!r.ok) {
+          throw new Error(json && json.msg ? json.msg : 'HTTP ' + r.status);
+        }
+        return json;
+      }).catch(async (err) => {
+        if (action === 'getHistoryRecords') {
+          return await loadHistoryFromLocal(args[0] || {});
+        }
+        if (action === 'getRecordDetail') {
+          const rowKey = args[0];
+          const records = await fetchLocalRecords();
+          const record = records.find((row) => String(row.Row_Key || '').trim() === String(rowKey || '').trim()) || null;
+          return { record };
+        }
+        throw err;
+      });
+    }
+
+    function debounceFilter() { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => doFilter(), 380); }
+    function doFilter() { loadPage(1); }
+
+    function loadPage(page) {
+      if (!CURRENT_USER) return;
+      currentPage = page;
+      document.getElementById("mobileCards").innerHTML = '<p style="text-align:center;padding:30px;color:var(--text-muted);">⏳ กำลังโหลด…</p>';
+
+      const filters = {
+        search: document.getElementById("searchInput").value.trim(),
+        kpi: document.getElementById("filterKPI").value,
+        shift: document.getElementById("filterShift").value,
+        page: page,
+        per_page: 8,
+        sort_col: 'record_date',
+        sort_dir: 'desc',
+      };
+
+      callServer('getHistoryRecords', [filters])
+        .then((data) => {
+          totalPages = data.pages || 1;
+          renderStats(data.stats, data.total);
+          renderMobile(data.records);
+          renderPagination(data.total, data.page, data.pages);
+        })
+        .catch((err) => showToast("❌ โหลดล้มเหลว: " + err.message));
+    }
+
+    function renderStats(stats, total) {
+      let html = `<div class="stat-chip"><span class="dot"></span>ทั้งหมด ${total}</div>`;
+      (stats || []).forEach((s) => { html += `<div class="stat-chip"><span class="dot"></span>${s.kpi}: ${s.cnt}</div>`; });
+      document.getElementById("statsBar").innerHTML = html;
+    }
+
+    function renderMobile(records) {
+      const container = document.getElementById("mobileCards");
+      const empty = document.getElementById("emptyState");
+      if (!records || !records.length) { container.innerHTML = ""; empty.style.display = "flex"; return; }
+      empty.style.display = "none";
+      container.innerHTML = records.map((r) => `
+        <div class="rec-card" onclick="openModal('${r.Row_Key}')">
+          <div class="rec-card-header">
+            <div style="display:flex;gap:7px;flex-wrap:wrap;">
+              <span class="badge badge-${r.KPI}">● ${r.KPI}</span>
+              <span style="font-size:11px;font-weight:700;color:${r.Problem_Shift==='White'?'#1a5276':'#9a6c00'}">${r.Problem_Shift}</span>
+            </div>
+            <span style="font-size:11px;color:var(--text-muted);">${r.record_date}</span>
+          </div>
+          <div style="padding:7px 10px;font-size:11px;font-weight:600;color:var(--label);">👤 ${esc(r.Full_Name)} (${esc(r.Kumi)})</div>
+          <div class="rec-card-body">
+            <div class="rec-field"><span class="rec-field-label">Main KPI</span><span>${esc(r.Main_KPI)}</span></div>
+            <div class="rec-field"><span class="rec-field-label">ช่วงเวลา</span><span style="font-family:var(--mono)">${r.Problem_Hour || "-"}</span></div>
+          </div>
+          <div class="rec-card-detail">📋 ${esc(r.Detail)}</div>
+        </div>`).join("");
+    }
+
+    function renderPagination(total, page, pages) {
+      const start = (page - 1) * 8 + 1, end = Math.min(page * 8, total);
+      document.getElementById("pageInfo").textContent = total ? `${start}–${end} จาก ${total}` : "ไม่พบ";
+      let html = `<button class="page-btn" onclick="loadPage(${page-1})" ${page===1?"disabled":""}>‹</button>`;
+      for (let p = 1; p <= pages; p++) {
+        if (pages <= 7 || p === 1 || p === pages || Math.abs(p - page) <= 1) {
+          html += `<button class="page-btn ${p===page?"active":""}" onclick="loadPage(${p})">${p}</button>`;
+        } else if (Math.abs(p - page) === 2) {
+          html += `<span style="color:var(--text-muted)">…</span>`;
+        }
+      }
+      html += `<button class="page-btn" onclick="loadPage(${page+1})" ${page>=pages?"disabled":""}>›</button>`;
+      document.getElementById("pageBtns").innerHTML = html;
+    }
+
+    function esc(s) { return String(s || '').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    function openModal(rowKey) {
+      document.getElementById("modalBody").innerHTML = '<p style="text-align:center;padding:20px;">⏳</p>';
+      document.getElementById("modalOverlay").classList.add("show");
+      callServer('getRecordDetail', [rowKey])
+        .then((data) => {
+          const r = data.record;
+          if (!r) { showToast("❌ ไม่พบ"); return; }
+          document.getElementById("modalTitle").textContent = `${r.record_date} | ${esc(r.Kumi)}`;
+          document.getElementById("modalBody").innerHTML = `
+            <div class="modal-grid">
+              <div class="mf"><span class="mf-label">KPI</span><span class="badge badge-${r.KPI}">● ${r.KPI}</span></div>
+              <div class="mf"><span class="mf-label">Shift</span><span style="font-weight:700;color:${r.Problem_Shift==='White'?'#1a5276':'#9a6c00'}">${r.Problem_Shift}</span></div>
+              <div class="mf"><span class="mf-label">Main KPI</span><span>${esc(r.Main_KPI)}</span></div>
+              <div class="mf"><span class="mf-label">Sub KPI</span><span>${esc(r.Sub_KPI)}</span></div>
+            </div>
+            <hr>
+            <div class="mf"><span class="mf-label">👤 ผู้บันทึก</span><span style="font-weight:600;">${esc(r.Full_Name)} (${esc(r.Kumi)} / ${esc(r.Problem_Shift)})</span></div>
+            <div class="mf"><span class="mf-label">รายละเอียดปัญหา</span><div class="modal-textarea">${esc(r.Detail)}</div></div>
+            <div class="mf"><span class="mf-label">แนวทางแก้ไข</span><div class="modal-textarea">${esc(r.Countermeasure || "-")}</div></div>
+            ${r.Image_Name ? `<div class="mf"><span class="mf-label">รูปภาพ</span><img class="modal-img" src="${r.Image_Name}" onclick="window.open(this.src,'_blank')"></div>` : ""}
+          `;
+        })
+        .catch((err) => showToast("❌ " + err.message));
+    }
+
+    function closeModal() { document.getElementById("modalOverlay").classList.remove("show"); }
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2200);
+    }
+  </script>
+  <script>
+    (function(){
+      const BASE_URL = APP.initAppState();
+      function goToMenu(event){
+        if (event) event.preventDefault();
+        APP.safeNavigate(APP.buildPageHref('menu'));
+      }
+      if (location.pathname.endsWith('/menu.html') || location.pathname.endsWith('/login.html')) return;
+      if (document.getElementById('backToMenuBtn')) return;
+      var btn=document.createElement('a');
+      btn.id='backToMenuBtn';
+      btn.href=APP.buildPageHref('menu');
+      btn.textContent='⬅ Back to Menu';
+      btn.setAttribute('role','button');
+      btn.style='position:fixed;left:12px;bottom:12px;padding:8px 12px;background:#800000;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.18)';
+      btn.addEventListener('click', goToMenu);
+      document.body.appendChild(btn);
+    })();
+  </script>
+  </body>
+  </html>

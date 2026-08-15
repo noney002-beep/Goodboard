@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>(W) Real-time Problem Record</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --maroon: #804f51; --maroon-light: #a17174; --maroon-faint: #faf1f2; --maroon-subtle: #f2dcdd;
+      --bg-off-white: #f8f9fa; --border: #d5b3b4; --text: #1a1a1a; --text-muted: #666; --label: #5f2f30;
+      --radius: 6px; --font: "IBM Plex Sans Thai", sans-serif; --mono: "IBM Plex Mono", monospace; --header-h: 46px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; width: 100%; background: var(--bg-off-white); font-family: var(--font); color: var(--text); -webkit-tap-highlight-color: transparent; }
+    .app { display: flex; flex-direction: column; min-height: 100dvh; width: 100%; }
+    .header { background: var(--maroon); color: #fff; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: var(--header-h); flex-shrink: 0; box-shadow: 0 2px 6px rgba(128,0,0,.35); flex-wrap: wrap; }
+    .header h1 { font-size: clamp(13px, 2vw, 18px); font-weight: 700; flex: 1; min-width: 150px; }
+    .header-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .header-buttons a, .header-buttons button { background: #fff2; border: 1px solid #fff5; color: #fff; border-radius: 6px; padding: 8px 12px; font-size: 12px; cursor: pointer; min-height: 36px; display: flex; align-items: center; justify-content: center; }
+    .form-area { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 10px; overflow-y: auto; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+    label.lbl { font-size: 12px; font-weight: 700; color: var(--label); letter-spacing: .3px; display: block; margin-bottom: 4px; text-transform: uppercase; }
+    input, select, textarea { width: 100%; font-family: var(--font); font-size: 16px; color: var(--text); background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius); padding: 10px 10px; outline: none; min-height: 44px; }
+    input:focus, select:focus, textarea:focus { border-color: var(--maroon); box-shadow: 0 0 0 2px rgba(128,0,0,.1); }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23800000' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 7px center; background-size: 16px; padding-right: 32px; cursor: pointer; }
+    select:disabled, input:disabled, input[readonly] { background: var(--bg-off-white); color: var(--text-muted); cursor: not-allowed; }
+    textarea { resize: none; min-height: 90px; }
+    .fg { display: flex; flex-direction: column; margin-bottom: 8px; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .sec-label { font-size: 13px; font-weight: 700; color: var(--maroon); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1.5px solid var(--maroon-subtle); padding-bottom: 4px; margin-bottom: 8px; }
+    .picture-box { border: 2px dashed var(--border); border-radius: var(--radius); background: var(--maroon-faint); min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; position: relative; overflow: hidden; touch-action: manipulation; }
+    .picture-box span { font-size: 12px; color: var(--text-muted); text-align: center; padding: 0 6px; }
+    .picture-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #pic-input { display: none; }
+    .action-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+    .btn { font-family: var(--font); font-size: 15px; font-weight: 700; border: none; border-radius: var(--radius); padding: 12px 22px; cursor: pointer; flex: 1; min-height: 44px; min-width: 100px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+    .btn:active { transform: scale(0.98); }
+    .btn-save { background: var(--maroon); color: #fff; box-shadow: 0 2px 6px rgba(128,0,0,.28); }
+    .btn-cancel { background: #f0f0f0; color: #555; border: 1.5px solid #ccc; }
+    .btn:disabled { opacity: .65; cursor: not-allowed; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--maroon); color: #fff; padding: 10px 22px; border-radius: 20px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(128,0,0,.4); z-index: 999; transition: transform .3s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 style="flex:1">(W) Real-time Problem Record</h1>
+      <div class="header-buttons">
+        <a id="backToMenuBtn" class="btn btn-cancel" href="menu.html">⬅ กลับเมนู</a>
+        <button onclick="goHistory()">ประวัติ</button>
+        <button onclick="doLogout()">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <div class="form-area">
+      <div class="card">
+        <div class="grid2">
+          <div class="fg">
+            <label class="lbl">รหัสพนักงาน (Emp ID)</label>
+            <input type="number" id="emp-id" readonly style="background:var(--bg-off-white);color:var(--text-muted);" />
+          </div>
+          <div class="fg">
+            <label class="lbl">Date</label>
+            <input type="date" id="date" />
+          </div>
+          <div class="fg">
+            <label class="lbl">Kumi 🔒</label>
+            <select id="kumi" disabled></select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Shift 🔒</label>
+            <select id="shift" disabled></select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Full Name 🔒</label>
+            <input type="text" id="full-name" readonly style="background:var(--bg-off-white);color:var(--text-muted);" />
+          </div>
+          <div class="fg">
+            <label class="lbl">Role 🔒</label>
+            <input type="text" id="role-user" readonly style="background:var(--bg-off-white);color:var(--text-muted);" />
+          </div>
+          <div class="fg">
+            <label class="lbl">KPI</label>
+            <select id="kpi">
+              <option value="">-- เลือก --</option>
+              <option>Safety</option>
+              <option>Environment</option>
+              <option>Quality</option>
+              <option>Production</option>
+              <option>Cost</option>
+              <option>HRD</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Problem Time</label>
+            <input type="time" id="problem-time" onchange="calcProblemHour(this.value)" oninput="calcProblemHour(this.value)" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid2">
+          <div class="fg">
+            <label class="lbl">Main KPI</label>
+            <select id="main-kpi"><option value="">-- เลือก --</option></select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Sub KPI</label>
+            <select id="sub-kpi"><option value="">-- เลือก --</option></select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Process KPI</label>
+            <select id="process-kpi"><option value="">-- เลือก --</option></select>
+          </div>
+          <div class="fg">
+            <label class="lbl">Problem Hour (auto)</label>
+            <input type="text" id="problem-hour" readonly placeholder="แสดงอัตโนมัติ" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 6px;">
+          <span style="font-size: 13px; font-weight: 700; color: var(--label); white-space: nowrap;">จำนวนปัญหา</span>
+          <input type="number" id="result-code" style="font-family: var(--mono); width: 70px;" />
+          <input type="text" id="result-desc" readonly placeholder="หน่วย" style="flex:1" />
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap;">
+          <span style="font-size: 13px; font-weight: 700; color: var(--label); white-space: nowrap;">Target</span>
+          <input type="number" id="target" step="0.1" style="font-family: var(--mono); width: 70px;" />
+          <span style="font-size: 13px; font-weight: 700; color: var(--label); white-space: nowrap;">Actual</span>
+          <input type="number" id="actual" step="0.1" style="font-family: var(--mono); width: 70px;" />
+          <input type="text" id="volume-type" readonly placeholder="หน่วย/unit" style="flex:1" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-label">รูปภาพปัญหา</div>
+        <div class="picture-box" onclick="document.getElementById('pic-input').click()" id="picture-area">
+          <span>📷 แตะเพื่อเพิ่มรูปภาพ</span>
+          <img id="preview-img" style="display:none" />
+        </div>
+        <input type="file" id="pic-input" accept="image/*" onchange="previewImage(event)" />
+      </div>
+
+      <div class="card">
+        <div class="sec-label">รายละเอียดปัญหา</div>
+        <textarea id="problem-detail" placeholder="ระบุรายละเอียดปัญหา"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="sec-label">แนวทางการแก้ไข</div>
+        <textarea id="countermeasure" placeholder="ระบุแนวทางการแก้ไขปัญหา"></textarea>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-cancel" onclick="clearForm()">รีเซ็ต</button>
+        <button class="btn btn-save" id="save-btn" onclick="saveRecord()">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let BASE_URL = '';
+    try {
+      if (typeof APP !== 'undefined' && APP && typeof APP.initAppState === 'function') {
+        BASE_URL = APP.initAppState();
+      }
+    } catch (e) {
+      console.warn('APP initialization failed:', e.message);
+    }
+    let CURRENT_USER = null;
+
+    function loadStoredUser() {
+      try {
+        CURRENT_USER = JSON.parse(localStorage.getItem('glboard_user') || 'null');
+      } catch (e) { CURRENT_USER = null; }
+
+      if (!CURRENT_USER || !CURRENT_USER.Username) {
+        if (typeof APP !== 'undefined' && APP && typeof APP.restoreUserFromUrl === 'function') {
+          try { APP.restoreUserFromUrl(); } catch (e) {}
+        }
+        try {
+          CURRENT_USER = JSON.parse(localStorage.getItem('glboard_user') || 'null');
+        } catch (e) { CURRENT_USER = null; }
+      }
+      return CURRENT_USER && CURRENT_USER.Username ? CURRENT_USER : null;
+    }
+
+    function safeNavigate(url) {
+      if (typeof APP !== 'undefined' && APP && typeof APP.safeNavigate === 'function') {
+        try { APP.safeNavigate(url); return; } catch (e) {}
+      }
+      window.location.href = url;
+    }
+
+    (function authGuard() {
+      const u = loadStoredUser();
+      if (!u) { safeNavigate(BASE_URL ? (BASE_URL + '?page=login') : 'login.html'); return; }
+      if (!u.Kumi || !u.Shift) { 
+        try { localStorage.removeItem('glboard_user'); } catch (e) {}
+        safeNavigate(BASE_URL ? (BASE_URL + '?page=login') : 'login.html'); 
+        return; 
+      }
+      updateUserUi();
+    })();
+
+    function updateUserUi() {
+      document.getElementById('emp-id').value = CURRENT_USER.Emp_ID;
+      document.getElementById('full-name').value = CURRENT_USER.Full_Name || '';
+      document.getElementById('role-user').value = CURRENT_USER.Role || 'User';
+      setLockedSelectValue(document.getElementById('kumi'), CURRENT_USER.Kumi);
+      setLockedSelectValue(document.getElementById('shift'), CURRENT_USER.Shift);
+    }
+
+    function setLockedSelectValue(selectEl, value) {
+      const val = value || '';
+      const exists = Array.from(selectEl.options).some((o) => o.value === val);
+      if (val && !exists) {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        selectEl.appendChild(opt);
+      }
+      selectEl.value = val;
+    }
+
+    function goHistory() {
+      if (!CURRENT_USER) { safeNavigate(BASE_URL ? (BASE_URL + '?page=login') : 'login.html'); return; }
+      let target = 'history.html';
+      if (typeof APP !== 'undefined' && APP && typeof APP.buildPageHref === 'function') {
+        try { target = APP.buildPageHref('history'); } catch (e) {}
+      }
+      safeNavigate(target);
+    }
+
+    window.goToMenu = function(event) {
+      if (event) event.preventDefault();
+      let target = 'menu.html';
+      if (typeof APP !== 'undefined' && APP && typeof APP.buildPageHref === 'function') {
+        try { target = APP.buildPageHref('menu'); } catch (e) {}
+      }
+      safeNavigate(target);
+    };
+
+    function doLogout() {
+      try {
+        CURRENT_USER = null;
+        if (typeof APP !== 'undefined' && APP && typeof APP.logout === 'function') {
+          APP.logout();
+          return;
+        }
+      } catch (e) {}
+      try { localStorage.removeItem('glboard_user'); } catch (e) {}
+      safeNavigate(BASE_URL ? (BASE_URL + '?page=login') : 'login.html');
+    }
+
+    function getApiEndpoint() {
+      if (typeof BASE_URL === 'string' && BASE_URL) {
+        return BASE_URL;
+      }
+      try {
+        const stored = localStorage.getItem('glboard_baseUrl');
+        if (stored) {
+          const trimmed = stored.trim();
+          if (trimmed && !trimmed.startsWith('<')) {
+            return trimmed;
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to read stored BASE_URL:', e.message);
+      }
+      try {
+        const apiUrl = new URL('/api', window.location.href);
+        if (apiUrl.protocol === 'http:' || apiUrl.protocol === 'https:') {
+          return apiUrl.toString();
+        }
+      } catch (e) {
+        console.warn('Unable to resolve API endpoint from current origin:', e.message);
+      }
+      return '/api';
+    }
+
+    function generateRowKey() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function savePendingRecord(record) {
+      try {
+        if (!record.Row_Key) {
+          record.Row_Key = generateRowKey();
+        }
+        if (!record.created_at) {
+          record.created_at = new Date().toISOString().replace('T', ' ').split('.')[0];
+        }
+        const pending = JSON.parse(localStorage.getItem('glboard_pending_records') || '[]');
+        if (!Array.isArray(pending)) {
+          return false;
+        }
+        pending.push(record);
+        localStorage.setItem('glboard_pending_records', JSON.stringify(pending));
+        return true;
+      } catch (e) {
+        console.warn('Failed to save pending record locally:', e.message);
+        return false;
+      }
+    }
+
+    function callServer(action, args) {
+      const endpoint = getApiEndpoint();
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({ action: action, args: args || [] }),
+      }).then(async (r) => {
+        const text = await r.text();
+        let json;
+        try {
+          json = text ? JSON.parse(text) : {};
+        } catch (e) {
+          throw new Error('Invalid JSON response from server');
+        }
+        if (!r.ok) {
+          throw new Error(json && json.msg ? json.msg : `HTTP ${r.status}`);
+        }
+        return json;
+      }).catch((err) => {
+        if (action === 'submitRecord' && args && args[0] && savePendingRecord(args[0])) {
+          return { ok: true, msg: '✅ บันทึกสำเร็จ (ออฟไลน์)' };
+        }
+        throw err;
+      });
+    }
+
+    const FALLBACK_UNIT_MAP = {
+      "Safety|Accident": { desc: ["Case"], vol: ["Case"] },
+      "Safety|Heath Care": { desc: ["Case"], vol: ["Case"] },
+      "Environment|Waste": { desc: ["kg"], vol: ["kg/U"] },
+      "Environment|Water": { desc: ["Lite"], vol: ["L/U"] },
+      "Environment|Co2 and Energy": { desc: ["PPM"], vol: ["PPM"] },
+      "Quality|SQA": { desc: ["Case"], vol: ["Case/U"] },
+      "Quality|CVI": { desc: ["Defect"], vol: ["D/U"] },
+      "Quality|EDP": { desc: ["Defect"], vol: ["D/U"] },
+      "Quality|(W) Inspection": { desc: ["Defect"], vol: ["D/U"] },
+      "Quality|Japan Export": { desc: ["Case"], vol: ["Case/U"] },
+      "Production|%(W) Effective": { desc: ["minute"], vol: ["%Eff"] },
+      "HRD|%(W) Training": { desc: ["Prs."], vol: ["Prs."] },
+    };
+
+    const FALLBACK_KPI_MAP = {
+      Safety: {
+        mainKpi: ["Accident", "Heath Care"],
+        sub: { Accident: ["On Job", "Off Job"], "Heath Care": ["Covid-19", "Influ A/B"] },
+        process: { "Accident|On Job": ["Workability"], "Accident|Off Job": ["Traffic Accident"] },
+      },
+      Environment: {
+        mainKpi: ["Waste", "Water", "Co2 and Energy"],
+        sub: { Waste: ["Contaminate", "Normal"], Water: ["Production", "None Production"], "Co2 and Energy": ["Production", "None Production"] },
+        process: { "Waste|Contaminate": ["Quantity Control"], "Waste|Normal": ["Quantity Control"], "Co2 and Energy|Production": ["Control"], "Co2 and Energy|None Production": ["Control"] },
+      },
+      Quality: {
+        mainKpi: ["SQA", "CVI", "EDP", "(W) Inspection", "Japan Export"],
+        sub: { "SQA": ["No Item Check","Poor Skill"], "CVI": ["No Item Check","Poor Skill"] },
+        process: { "SQA|No Item Check": ["M and W","Surface"] },
+      },
+      Production: {
+        mainKpi: ["%(W) Effective"],
+        sub: { "%(W) Effective": ["Stop Time"] },
+        process: { "%(W) Effective|Stop Time": ["N/W and F/W","Quality","EQ W","EQ_MTN","Logistics","Process Delay"] },
+      },
+      Cost: {
+        mainKpi: ["Cost B/U"],
+        sub: { "Cost B/U": ["Direct Cost", "Indirect Cost"] },
+        process: { "Cost B/U|Direct Cost": ["Fix Cost","Avalible Cost"] },
+      },
+      HRD: {
+        mainKpi: ["%(W) Training"],
+        sub: { "%(W) Training": ["Internal Training", "External Training"] },
+        process: { "%(W) Training|Internal Training": ["(W) Functional Training", "Functional Training"] },
+      },
+    };
+
+    let SHEET_KPI_TREE = null;
+
+    function parseCsvLine(line) {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { current += '"'; i += 1; }
+          else { inQuotes = !inQuotes; }
+        } else if (ch === ',' && !inQuotes) {
+          values.push(current);
+          current = '';
+        } else { current += ch; }
+      }
+      values.push(current);
+      return values;
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      const lines = text.split(/\r?\n/).map((l) => l.trimEnd()).filter((l) => l.length > 0);
+      if (!lines.length) return rows;
+      const headers = parseCsvLine(lines[0]);
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        const obj = {};
+        headers.forEach((header, idx) => { obj[header] = values[idx] || ''; });
+        rows.push(obj);
+      }
+      return rows;
+    }
+
+    async function fetchMonitoringRecords() {
+      const params = { page: 1, per_page: 1000, sort_col: 'record_date', sort_dir: 'desc' };
+      if (typeof BASE_URL === 'string' && BASE_URL) {
+        try {
+          const response = await fetch(BASE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'getMonitoringData', args: [params] }),
+          });
+          if (response.ok) {
+            const json = await response.json();
+            if (json && Array.isArray(json.records)) {
+              return json.records;
+            }
+          }
+        } catch (e) {
+          console.warn('Apps Script load failed:', e.message);
+        }
+      }
+
+      if (window.location.host) {
+        try {
+          const allRecords = [];
+          let page = 1;
+          let totalPages = 1;
+          do {
+            const query = new URLSearchParams(Object.assign({ page, per_page: 200, sort_col: 'record_date', sort_dir: 'desc' }, params));
+            const url = '/api/records?' + query.toString();
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const json = await resp.json();
+            allRecords.push(...(json.records || []));
+            totalPages = json.pages || 1;
+            page += 1;
+          } while (page <= totalPages);
+          if (allRecords.length) return allRecords;
+        } catch (e) {
+          console.warn('Local API load failed:', e.message);
+        }
+      }
+
+      try {
+        const sheetUrl = 'https://docs.google.com/spreadsheets/d/1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E/export?format=csv&gid=2045278866';
+        const resp = await fetch(sheetUrl, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('CSV load failed');
+        const csv = await resp.text();
+        return parseCsv(csv);
+      } catch (e) {
+        console.warn('CSV fallback failed:', e.message);
+      }
+      return [];
+    }
+
+    function isIgnoredKpiValue(value) {
+      const normalized = String(value || '').trim().toLowerCase();
+      return ['test', 'realusertest', 'test main', 'test-main', 'testmain'].includes(normalized);
+    }
+
+    function buildKpiTree(records) {
+      const tree = {};
+      records.forEach((r) => {
+        const rawKpi = String(r.KPI || r.kpi || '').trim();
+        const kpi = normalizeKpiValue(rawKpi);
+        if (!kpi || isIgnoredKpiValue(kpi)) return;
+        const rawMain = String(r.Main_KPI || r.main_kpi || '').trim();
+        const main = normalizeKpiValue(rawMain);
+        const rawSub = String(r.Sub_KPI || r.sub_kpi || '').trim();
+        const sub = normalizeKpiValue(rawSub);
+        const rawProc = String(r.Process_KPI || r.process_kpi || '').trim();
+        const proc = normalizeKpiValue(rawProc);
+        if (isIgnoredKpiValue(main) || isIgnoredKpiValue(sub) || isIgnoredKpiValue(proc)) return;
+        if (!tree[kpi]) {
+          tree[kpi] = { mainKpi: new Set(), sub: {}, process: {} };
+        }
+        if (main) tree[kpi].mainKpi.add(main);
+        if (main && sub) {
+          tree[kpi].sub[main] = tree[kpi].sub[main] || new Set();
+          tree[kpi].sub[main].add(sub);
+        }
+        if (main && sub && proc) {
+          const key = `${main}|${sub}`;
+          tree[kpi].process[key] = tree[kpi].process[key] || new Set();
+          tree[kpi].process[key].add(proc);
+        }
+      });
+      Object.keys(tree).forEach((kpi) => {
+        tree[kpi].mainKpi = Array.from(tree[kpi].mainKpi).sort();
+        const subObj = {};
+        Object.keys(tree[kpi].sub).forEach((main) => {
+          subObj[main] = Array.from(tree[kpi].sub[main]).sort();
+        });
+        tree[kpi].sub = subObj;
+        const procObj = {};
+        Object.keys(tree[kpi].process).forEach((key) => {
+          procObj[key] = Array.from(tree[kpi].process[key]).sort();
+        });
+        tree[kpi].process = procObj;
+      });
+      return tree;
+    }
+
+    async function loadKpiOptions() {
+      const records = await fetchMonitoringRecords();
+      const tree = buildKpiTree(records);
+      if (Object.keys(tree).length) {
+        SHEET_KPI_TREE = tree;
+        // Remove test entries that should not appear in the UI
+        const keys = Object.keys(tree).filter((k) => !isIgnoredKpiValue(k)).sort();
+        fillSelect('kpi', keys, '-- เลือก --');
+        return;
+      }
+      fillSelect('kpi', Object.keys(FALLBACK_KPI_MAP).sort(), '-- เลือก --');
+    }
+
+    function fillSelect(selectId, options, placeholder) {
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = `<option value="">${placeholder}</option>`;
+      options.forEach((opt) => {
+        const o = document.createElement('option');
+        o.value = o.textContent = opt;
+        sel.appendChild(o);
+      });
+    }
+
+    function fillUnitSelects(kpi, mainKpi) {
+      const key = `${kpi}|${mainKpi}`;
+      const mapping = FALLBACK_UNIT_MAP[key] || { desc: [], vol: [] };
+      fillSelect("result-desc", mapping.desc, "-- หน่วย --");
+      fillSelect("volume-type", mapping.vol, "-- หน่วย/volume --");
+      if (mapping.desc.length === 1) document.getElementById("result-desc").value = mapping.desc[0];
+      if (mapping.vol.length === 1) document.getElementById("volume-type").value = mapping.vol[0];
+    }
+
+    function normalizeKpiValue(value) {
+      if (value == null) return '';
+      let s = String(value).trim();
+      // Normalize common KPI names and CO2 variants to a single display value
+      if (/^safety$/i.test(s)) return 'Safety';
+      if (/^(environment|enviroment)$/i.test(s)) return 'Environment';
+      if (/^quality$/i.test(s)) return 'Quality';
+      if (/^production$/i.test(s)) return 'Production';
+      if (/^cost$/i.test(s)) return 'Cost';
+      if (/^hrd$/i.test(s)) return 'HRD';
+      s = s.replace(/CO\?/gi, 'Co2');
+      s = s.replace(/CO2/gi, 'Co2');
+      s = s.replace(/Co2\s*and\s*Energy/i, 'Co2 and Energy');
+      return s;
+    }
+
+    function getKpiMap(name) {
+      const fallback = FALLBACK_KPI_MAP[name] || { mainKpi: [], sub: {}, process: {} };
+      if (!SHEET_KPI_TREE || !SHEET_KPI_TREE[name]) {
+        if (name === 'Environment') {
+          return {
+            mainKpi: ['Waste', 'Water', 'Co2 and Energy'],
+            sub: {
+              Waste: ['Contaminate', 'Normal'],
+              Water: ['Production', 'None Production'],
+              'Co2 and Energy': ['Production', 'None Production']
+            },
+            process: {
+              'Waste|Contaminate': ['Quantity Control'],
+              'Waste|Normal': ['Quantity Control'],
+              'Co2 and Energy|Production': ['Control'],
+              'Co2 and Energy|None Production': ['Control']
+            }
+          };
+        }
+        return fallback;
+      }
+      // Merge SHEET_KPI_TREE with FALLBACK_KPI_MAP to ensure all options are available
+      const sheetMap = SHEET_KPI_TREE[name];
+      const merged = {
+        mainKpi: [],
+        sub: {},
+        process: {}
+      };
+
+      function addMainKpi(value) {
+        const normalized = normalizeKpiValue(value);
+        if (!normalized || isIgnoredKpiValue(normalized)) return;
+        if (!merged.mainKpi.includes(normalized)) merged.mainKpi.push(normalized);
+      }
+
+      function addSubKpi(main, sub) {
+        const normalizedMain = normalizeKpiValue(main);
+        const normalizedSub = normalizeKpiValue(sub);
+        if (!normalizedMain || !normalizedSub || isIgnoredKpiValue(normalizedMain) || isIgnoredKpiValue(normalizedSub)) return;
+        merged.sub[normalizedMain] = merged.sub[normalizedMain] || [];
+        if (!merged.sub[normalizedMain].includes(normalizedSub)) merged.sub[normalizedMain].push(normalizedSub);
+      }
+
+      function addProcessKpi(main, sub, proc) {
+        const normalizedMain = normalizeKpiValue(main);
+        const normalizedSub = normalizeKpiValue(sub);
+        const normalizedProc = normalizeKpiValue(proc);
+        if (!normalizedMain || !normalizedSub || !normalizedProc || isIgnoredKpiValue(normalizedMain) || isIgnoredKpiValue(normalizedSub) || isIgnoredKpiValue(normalizedProc)) return;
+        const key = `${normalizedMain}|${normalizedSub}`;
+        merged.process[key] = merged.process[key] || [];
+        if (!merged.process[key].includes(normalizedProc)) merged.process[key].push(normalizedProc);
+      }
+
+      (sheetMap.mainKpi || []).forEach(addMainKpi);
+      Object.keys(sheetMap.sub || {}).forEach((main) => {
+        addMainKpi(main);
+        (sheetMap.sub[main] || []).forEach((sub) => addSubKpi(main, sub));
+      });
+      Object.keys(sheetMap.process || {}).forEach((key) => {
+        const [main, sub] = key.split('|');
+        addMainKpi(main);
+        addSubKpi(main, sub);
+        (sheetMap.process[key] || []).forEach((proc) => addProcessKpi(main, sub, proc));
+      });
+
+      (fallback.mainKpi || []).forEach(addMainKpi);
+      Object.keys(fallback.sub || {}).forEach((main) => {
+        addMainKpi(main);
+        (fallback.sub[main] || []).forEach((sub) => addSubKpi(main, sub));
+      });
+      Object.keys(fallback.process || {}).forEach((key) => {
+        const [main, sub] = key.split('|');
+        addMainKpi(main);
+        addSubKpi(main, sub);
+        (fallback.process[key] || []).forEach((proc) => addProcessKpi(main, sub, proc));
+      });
+
+      merged.mainKpi.sort();
+      Object.keys(merged.sub).forEach((main) => merged.sub[main].sort());
+      Object.keys(merged.process).forEach((key) => merged.process[key].sort());
+
+      if (name === 'Environment') {
+        const allowed = ['Waste', 'Water', 'Co2 and Energy'];
+        merged.mainKpi = merged.mainKpi.filter((value) => allowed.includes(value));
+        const filteredSub = {};
+        const filteredProcess = {};
+        allowed.forEach((main) => {
+          if (merged.sub[main]) filteredSub[main] = merged.sub[main];
+          Object.keys(merged.process).forEach((key) => {
+            if (key.startsWith(`${main}|`)) {
+              filteredProcess[key] = merged.process[key];
+            }
+          });
+        });
+        merged.sub = filteredSub;
+        merged.process = filteredProcess;
+      }
+
+      if (name === 'Safety') {
+        merged.mainKpi = merged.mainKpi.filter((value) => value !== 'Main');
+        const filteredSub = {};
+        const filteredProcess = {};
+        Object.keys(merged.sub).forEach((main) => {
+          if (main !== 'Main') filteredSub[main] = merged.sub[main];
+        });
+        Object.keys(merged.process).forEach((key) => {
+          if (!key.startsWith('Main|')) filteredProcess[key] = merged.process[key];
+        });
+        merged.sub = filteredSub;
+        merged.process = filteredProcess;
+      }
+
+      return merged;
+    }
+
+    document.getElementById("kpi").addEventListener("change", function () {
+      const map = getKpiMap(this.value);
+      fillSelect("main-kpi", map.mainKpi || [], "-- เลือก --");
+      fillSelect("sub-kpi", [], "-- เลือก Main KPI ก่อน --");
+      fillSelect("process-kpi", [], "-- เลือก Sub KPI ก่อน --");
+    });
+
+    document.getElementById("main-kpi").addEventListener("change", function () {
+      const kpi = document.getElementById("kpi").value;
+      const normalizedMain = normalizeKpiValue(this.value);
+      const map = getKpiMap(kpi);
+      const subMap = map.sub || {};
+      fillSelect("sub-kpi", subMap[normalizedMain] || [], "-- เลือก --");
+      fillSelect("process-kpi", [], "-- เลือก Sub KPI ก่อน --");
+      fillUnitSelects(kpi, normalizedMain);
+    });
+
+    document.getElementById("sub-kpi").addEventListener("change", function () {
+      const kpi = document.getElementById("kpi").value;
+      const mainKpi = document.getElementById("main-kpi").value;
+      const map = getKpiMap(kpi);
+      const procMap = map.process || {};
+      fillSelect("process-kpi", procMap[`${mainKpi}|${this.value}`] || [], "-- เลือก --");
+    });
+
+    function calcProblemHour(timeStr) {
+      if (!timeStr) return;
+      const [h, m] = timeStr.split(":").map(Number);
+      let totalMin = h * 60 + m;
+      function format(min) { min = (min + 1440) % 1440; const hh = String(Math.floor(min/60)).padStart(2,"0"); const mm = String(min%60).padStart(2,"0"); return `${hh}:${mm}`; }
+      let start = null;
+      if (totalMin >= 450 && totalMin < 990) start = 450 + Math.floor((totalMin-450)/60)*60;
+      else if (totalMin >= 990 && totalMin < 1170) start = 990 + Math.floor((totalMin-990)/60)*60;
+      else if (totalMin >= 1170) start = 1170 + Math.floor((totalMin-1170)/60)*60;
+      else if (totalMin < 270) start = Math.floor(totalMin/60)*60;
+      if (start !== null) { const end = start + 60; document.getElementById("problem-hour").value = `${format(start)} - ${format(end)}`; }
+    }
+
+    // Ensure Problem Hour updates on load and on input for all browsers
+    window.addEventListener('DOMContentLoaded', function () {
+      try {
+        var t = document.getElementById('problem-time');
+        if (t) {
+          if (t.value) calcProblemHour(t.value);
+          t.addEventListener('input', function () { calcProblemHour(t.value); });
+        }
+      } catch (e) { console.warn('calcProblemHour init failed', e); }
+    });
+
+    let imageBase64 = null, imageMime = null, imageName = null;
+    function previewImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      imageMime = file.type; imageName = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target.result;
+        imageBase64 = result.split(",")[1];
+        const img = document.getElementById("preview-img");
+        img.src = result; img.style.display = "block";
+        document.querySelector("#picture-area span").style.display = "none";
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2200);
+    }
+
+    function saveRecord() {
+      if (!CURRENT_USER || !CURRENT_USER.Username) { safeNavigate(BASE_URL ? (BASE_URL + '?page=login') : 'login.html'); return; }
+      const detail = document.getElementById("problem-detail").value.trim();
+      if (!detail) { showToast("⚠️ กรุณาใส่รายละเอียดปัญหา"); return; }
+
+      const payload = {
+        Emp_ID: CURRENT_USER.Emp_ID,
+        Full_Name: CURRENT_USER.Full_Name || '',
+        Role_User: CURRENT_USER.Role || 'User',
+        Username: CURRENT_USER.Username,
+        Problem_Date: document.getElementById("date").value,
+        Kumi: CURRENT_USER.Kumi,
+        Problem_Shift: document.getElementById("shift").value,
+        KPI: document.getElementById("kpi").value,
+        Main_KPI: document.getElementById("main-kpi").value,
+        Sub_KPI: document.getElementById("sub-kpi").value,
+        Process_KPI: document.getElementById("process-kpi").value,
+        Problem_Time: document.getElementById("problem-time").value,
+        Problem_Hour: document.getElementById("problem-hour").value,
+        Problem_QTY: document.getElementById("result-code").value,
+        QTY_Unit: document.getElementById("result-desc").value,
+        Unit_Problem: document.getElementById("volume-type").value,
+        Problem_Target: document.getElementById("target").value,
+        Problem_Actual: document.getElementById("actual").value,
+        Detail: detail,
+        Countermeasure: document.getElementById("countermeasure").value,
+        Image_Base64: imageBase64,
+        Image_MimeType: imageMime,
+        Image_FileName: imageName,
+      };
+
+      if (!payload.Row_Key) payload.Row_Key = generateRowKey();
+      if (!payload.created_at) payload.created_at = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+      const btn = document.getElementById("save-btn");
+      btn.disabled = true; btn.textContent = "กำลังบันทึก...";
+
+      callServer('submitRecord', [payload])
+        .then((res) => {
+          btn.disabled = false; btn.textContent = "บันทึก";
+          showToast(res.msg);
+          if (res.ok) {
+            try { localStorage.setItem('recordSavedAt', Date.now().toString()); } catch (e) {}
+            clearForm();
+          }
+        })
+        .catch((err) => {
+          btn.disabled = false; btn.textContent = "บันทึก";
+          showToast("❌ เชื่อมต่อไม่ได้: " + err.message);
+        });
+    }
+
+    function clearForm() {
+      ["problem-detail", "countermeasure"].forEach((id) => (document.getElementById(id).value = ""));
+      document.getElementById("result-code").value = "";
+      document.getElementById("target").value = "";
+      document.getElementById("actual").value = "";
+      document.querySelectorAll("select").forEach((sel) => {
+        if (sel.id !== "kumi" && sel.id !== "shift") sel.selectedIndex = 0;
+      });
+      document.getElementById("date").value = new Date().toISOString().split("T")[0];
+      document.getElementById("problem-time").value = "";
+      document.getElementById("problem-hour").value = "";
+      const img = document.getElementById("preview-img");
+      img.style.display = "none"; img.src = "";
+      document.querySelector("#picture-area span").style.display = "";
+      imageBase64 = null; imageMime = null; imageName = null;
+    }
+
+    document.getElementById("date").value = new Date().toISOString().split("T")[0];
+    loadKpiOptions();
+  </script>
+</body>
+</html>

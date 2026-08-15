@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="th">
+<head><meta charset="utf-8"><title>Set Demo User</title>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+<script>
+  try {
+    localStorage.setItem('glboard_user', JSON.stringify({
+      Username: '0000', Emp_ID: '0000', Full_Name: 'Test User', Kumi: 'A', Shift: 'White'
+    }));
+  } catch (e) {}
+  location.href = 'login.html';
+</script>
+</body>
+</html>

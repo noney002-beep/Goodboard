@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>(W) GL Board - เข้าสู่ระบบ</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --maroon: #7e4f51; --maroon-light: #a06f71; --maroon-faint: #faf1f2;
+      --bg-off-white: #f8f9fa; --border: #d5b3b4; --text: #1a1a1a; --text-muted: #666; --label: #5f2f30;
+      --radius: 6px; --font: "IBM Plex Sans Thai", sans-serif;
+    }
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg-off-white); font-family: var(--font); color: var(--text); }
+    body { display: flex; align-items: center; justify-content: center; padding: 20px; min-height: 100dvh; }
+    .login-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 10px;
+      width: 100%; max-width: 360px; overflow: hidden; box-shadow: 0 6px 24px rgba(128,0,0,.12);
+    }
+    .login-header { background: var(--maroon); color: #fff; padding: 22px 20px; text-align: center; }
+    .login-header h1 { font-size: 16px; font-weight: 700; }
+    .login-header p { font-size: 11px; opacity: .85; margin-top: 4px; }
+    .login-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .fg { display: flex; flex-direction: column; gap: 4px; }
+    label.lbl { font-size: 12px; font-weight: 700; color: var(--label); text-transform: uppercase; letter-spacing: .3px; }
+    input { width: 100%; font-family: var(--font); font-size: 16px; color: var(--text); background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 10px; outline: none; min-height: 44px; }
+    input:focus { border-color: var(--maroon); box-shadow: 0 0 0 2px rgba(128,0,0,.1); }
+    .btn-login { font-family: var(--font); font-size: 16px; font-weight: 700; border: none; border-radius: var(--radius); padding: 14px; cursor: pointer; background: var(--maroon); color: #fff; box-shadow: 0 2px 6px rgba(128,0,0,.28); margin-top: 4px; min-height: 44px; active-color: var(--maroon-light); }
+    .btn-login:active { background: var(--maroon-light); transform: scale(0.98); }
+    .btn-login:disabled { opacity: .65; cursor: not-allowed; }
+    .hint { text-align: center; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+    .err-msg { font-size: 12px; color: #c0392b; text-align: center; min-height: 16px; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(70px); background: var(--maroon); color: #fff; padding: 10px 22px; border-radius: 20px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(128,0,0,.4); z-index: 999; transition: transform .3s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+<script>
+  window.APP = window.APP || {};
+  window.APP.getQueryParam = function(name) {
+    try { return new URL(window.location.href).searchParams.get(name); } catch (e) { return null; }
+  };
+  window.APP.safeNavigate = function(target) {
+    if (!target) return;
+    try { window.location.href = target; } catch (e) {}
+  };
+  window.APP.isValidBaseUrl = function(url) {
+    return typeof url === 'string' && url.trim().length > 0 && !url.trim().startsWith('<');
+  };
+  window.APP.safeDecodeBase64 = function(value) {
+    try { return decodeURIComponent(atob(value)); } catch (e) { return null; }
+  };
+  window.APP.safeEncodeBase64 = function(value) {
+    try { return btoa(value); } catch (e) { return null; }
+  };
+  window.APP.tryParseJson = function(value) {
+    try { return JSON.parse(value); } catch (e) { return null; }
+  };
+  window.APP.restoreUserFromUrl = function() {
+    var uParam = window.APP.getQueryParam('u');
+    if (!uParam) return;
+    var decoded = window.APP.safeDecodeBase64(uParam) || uParam;
+    try {
+      var user = JSON.parse(decoded);
+      if (user && user.Username) {
+        localStorage.setItem('glboard_user', JSON.stringify(user));
+      }
+    } catch (e) {}
+  };
+  window.APP.initAppState = function() {
+    var urlBase = window.APP.getQueryParam('baseUrl');
+    if (window.APP.isValidBaseUrl(urlBase)) {
+      window.BASE_URL = urlBase.trim();
+      try { localStorage.setItem('glboard_baseUrl', window.BASE_URL); } catch (e) {}
+    } else {
+      window.BASE_URL = '';
+      try {
+        var stored = localStorage.getItem('glboard_baseUrl');
+        if (window.APP.isValidBaseUrl(stored)) window.BASE_URL = stored.trim();
+      } catch (e) {}
+    }
+    window.APP.restoreUserFromUrl();
+    return window.BASE_URL;
+  };
+  window.APP.buildPageHref = function(page) {
+    page = String(page || '').replace(/\.html$/i, '').toLowerCase();
+    var routes = {
+      login: 'login', menu: 'menu', form: 'form', history: 'history', safety: 'safety', environment: 'Enviroment', eviroment: 'Enviroment', quality: 'Quality', cost: 'cost', hrd: 'hrd', production: 'Wproduction', wproduction: 'Wproduction', dashboard: 'dashboard'
+    };
+    page = routes[page] || page;
+    return page + '.html';
+  };
+  window.APP.appendUserParam = function(href) {
+    try {
+      var user = window.APP.tryParseJson(localStorage.getItem('glboard_user') || 'null');
+      if (user && user.Username) {
+        var u = window.APP.safeEncodeBase64(JSON.stringify(user));
+        if (u) return href + (href.indexOf('?') >= 0 ? '&' : '?') + 'u=' + encodeURIComponent(u);
+      }
+    } catch (e) {}
+    return href;
+  };
+</script>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-header">
+      <h1>(W) GL Board</h1>
+      <p>เข้าสู่ระบบเพื่อบันทึกและดูข้อมูลปัญหา</p>
+    </div>
+    <div class="login-body">
+      <div class="fg">
+        <label class="lbl">Username</label>
+        <input type="text" id="username" autocomplete="username" placeholder="username" />
+      </div>
+      <div class="fg">
+        <label class="lbl">Password</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <div class="err-msg" id="errMsg"></div>
+      <button class="btn-login" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+      <div class="hint">📞 ติดต่อผู้ดูแลระบบเพื่อสร้างบัญชี</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let BASE_URL = '';
+    try {
+      if (typeof APP !== 'undefined' && typeof APP.initAppState === 'function') {
+        BASE_URL = APP.initAppState();
+      } else {
+        const tmpl = "<?!= baseUrl ?>";
+        // When served as static file locally the template placeholder is unchanged
+        // (starts with '<?'), treat as empty so local test login path works.
+        if (tmpl && typeof tmpl === 'string' && tmpl.indexOf('<?') !== 0) {
+          BASE_URL = tmpl;
+        } else {
+          BASE_URL = '';
+        }
+      }
+    } catch (e) { BASE_URL = ''; }
+
+    (function checkExisting() {
+      try {
+        const u = JSON.parse(localStorage.getItem('glboard_user') || 'null');
+        if (u && u.Username) APP.safeNavigate(BASE_URL ? (BASE_URL + '?page=menu') : 'menu.html');
+      } catch (e) {}
+    })();
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    function safeNavigate(target) {
+      if (!target) return;
+      try {
+        window.location.href = target;
+        return;
+      } catch (e) {
+        // fallback to top navigation only if direct assignment is blocked
+      }
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = target;
+        }
+      } catch (e) {
+        console.error('Navigation failed:', e);
+      }
+    }
+
+    function callServer(action, args) {
+      var endpoint = BASE_URL;
+      if (!endpoint && window.location.host) {
+        endpoint = '/api';
+      }
+      if (!endpoint) {
+        return Promise.reject(new Error('ไม่มี BASE_URL สำหรับเชื่อมต่อ Apps Script และไม่พบ API ท้องถิ่น'));
+      }
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({ action: action, args: args || [] }),
+      }).then(async (r) => {
+        const contentType = r.headers.get('content-type') || '';
+        const text = await r.text();
+        if (!r.ok) {
+          if (contentType.includes('text/html')) {
+            throw new Error('เซิร์ฟเวอร์ตอบกลับ HTML ไม่ใช่ JSON — ตรวจสอบการตั้งค่า deployment และสิทธิ์การเข้าถึง');
+          }
+          throw new Error(text || r.statusText || 'HTTP error');
+        }
+        if (contentType.includes('text/html')) {
+          throw new Error('ได้รับ HTML แทน JSON จาก server — อาจเป็นเพราะ URL deployment ผิดหรือยังไม่ได้เปิดให้เข้าถึงแบบ Anyone');
+        }
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error('ข้อมูลตอบกลับไม่ใช่ JSON: ' + text.slice(0,200));
+        }
+      });
+    }
+
+    function doLogin() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const errEl = document.getElementById('errMsg');
+      errEl.textContent = '';
+
+      if (!username || !password) { errEl.textContent = 'กรุณากรอก Username และ Password'; return; }
+
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ...';
+
+      if (!BASE_URL && username === '0000' && password === '0000') {
+        const testUser = { Username: '0000', Emp_ID: '0000', First_Name: 'Test', Last_Name: 'User', Full_Name: 'Test User', Kumi: 'A', Shift: 'White', Role: 'User' };
+        try { localStorage.setItem('glboard_user', JSON.stringify(testUser)); } catch (e) {}
+        showToast('✅ เข้าสู่ระบบทดสอบสำเร็จ');
+        setTimeout(() => { safeNavigate('menu.html?u=' + btoa(encodeURIComponent(JSON.stringify(testUser)))); }, 400);
+        return;
+      }
+
+      callServer('loginUser', [username, password])
+        .then((res) => {
+          btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+          if (res.ok) {
+            try { localStorage.setItem('glboard_user', JSON.stringify(res.user)); } catch (e) {}
+            showToast(res.msg);
+            const u = btoa(encodeURIComponent(JSON.stringify(res.user)));
+            setTimeout(() => {
+              const target = (typeof BASE_URL !== 'undefined' && BASE_URL)
+              ? (BASE_URL + '?page=menu&u=' + u)
+              : ('menu.html?u=' + u);
+            safeNavigate(target);
+            }, 400);
+          } else {
+            errEl.textContent = res.msg;
+          }
+        })
+        .catch((err) => {
+          btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+          errEl.textContent = '❌ เชื่อมต่อไม่ได้: ' + err.message;
+        });
+    }
+
+    document.getElementById('password').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
+</body>
+</html>

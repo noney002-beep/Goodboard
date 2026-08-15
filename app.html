@@ -1,0 +1,280 @@
+<script>
+(function(window) {
+  function getQueryParam(name) {
+    var search = window.location.search || '';
+    if (search.charAt(0) === '?') search = search.slice(1);
+    if (!search) return null;
+    var pairs = search.split('&');
+    for (var i = 0; i < pairs.length; i++) {
+      var parts = pairs[i].split('=');
+      var key = parts[0] ? decodeURIComponent(parts[0].replace(/\+/g, ' ')) : '';
+      if (key === name) {
+        return parts.length > 1 ? decodeURIComponent(parts[1].replace(/\+/g, ' ')) : '';
+      }
+    }
+    return null;
+  }
+
+  function isValidBaseUrl(url) {
+    return typeof url === 'string' && url.trim().length > 0 && !url.trim().startsWith('<');
+  }
+
+  // Default to empty for local testing; production deploy uses Apps Script page which sets BASE_URL
+  var DEFAULT_BASE_URL = '';
+
+  function safeDecodeBase64(value) {
+    if (!value) return null;
+    try {
+      var decoded = window.atob(value);
+      if (!decoded) return null;
+      try { return decodeURIComponent(decoded); } catch (e) { return decoded; }
+    } catch (e) {
+      try { return window.atob(value); } catch (e2) { return null; }
+    }
+  }
+
+  function safeEncodeBase64(value) {
+    try { return window.btoa(value); } catch (e) {
+      try { return window.btoa(encodeURIComponent(value)); } catch (e2) { return null; }
+    }
+  }
+
+  function tryParseJson(value) {
+    if (!value) return null;
+    try { return JSON.parse(value); } catch (e) { return null; }
+  }
+
+  function restoreUserFromUrl() {
+    var uParam = getQueryParam('u');
+    if (!uParam) return;
+    var decoded = safeDecodeBase64(uParam);
+    if (!decoded) return;
+
+    var candidates = [decoded];
+    try { candidates.push(decodeURIComponent(decoded)); } catch (e) {}
+    try { candidates.push(decoded.replace(/%25/g, '%')); } catch (e) {}
+    try { candidates.push(decoded.replace(/%7B/g, '{').replace(/%7D/g, '}').replace(/%22/g, '"').replace(/%20/g, ' ')); } catch (e) {}
+
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = candidates[i];
+      try {
+        var user = JSON.parse(candidate);
+        if (user && user.Username) {
+          localStorage.setItem('glboard_user', JSON.stringify(user));
+          return;
+        }
+      } catch (e) {}
+    }
+  }
+
+  function buildLocalUrl(page) {
+    var params = [];
+    if (isValidBaseUrl(window.BASE_URL)) {
+      params.push('baseUrl=' + encodeURIComponent(window.BASE_URL));
+    }
+    try {
+      var user = tryParseJson(localStorage.getItem('glboard_user') || 'null');
+      if (user && user.Username) {
+        var u = safeEncodeBase64(JSON.stringify(user));
+        if (u) params.push('u=' + encodeURIComponent(u));
+      }
+    } catch (e) {}
+    return page + '.html' + (params.length ? '?' + params.join('&') : '');
+  }
+
+  function appendUserParam(href) {
+    try {
+      var user = tryParseJson(localStorage.getItem('glboard_user') || 'null');
+      if (user && user.Username) {
+        var u = safeEncodeBase64(JSON.stringify(user));
+        if (u) {
+          return href + (href.indexOf('?') >= 0 ? '&' : '?') + 'u=' + encodeURIComponent(u);
+        }
+      }
+    } catch (e) {}
+    return href;
+  }
+
+  window.APP = window.APP || {};
+  window.APP.logout = function() {
+    try { localStorage.removeItem('glboard_user'); } catch (e) {}
+    window.APP.safeNavigate(window.APP.buildPageHref('login'));
+  };
+
+  function safeNavigate(target) {
+    if (!target) return;
+    try {
+      window.location.href = target;
+      return;
+    } catch (e) {}
+    try {
+      if (window.top && window.top !== window) {
+        window.top.location.href = target;
+      }
+    } catch (e) {
+      console.error('Navigation failed:', e);
+    }
+  }
+
+  window.APP = window.APP || {};
+  window.APP.getQueryParam = getQueryParam;
+  window.APP.safeNavigate = safeNavigate;
+  window.APP.isValidBaseUrl = isValidBaseUrl;
+  window.APP.safeDecodeBase64 = safeDecodeBase64;
+  window.APP.safeEncodeBase64 = safeEncodeBase64;
+  window.APP.tryParseJson = tryParseJson;
+  window.APP.restoreUserFromUrl = restoreUserFromUrl;
+  window.APP.buildLocalUrl = buildLocalUrl;
+  window.APP.appendUserParam = appendUserParam;
+
+  window.goToMenu = window.goToMenu || function(event) {
+    if (event) event.preventDefault();
+    window.APP.safeNavigate(window.APP.buildPageHref('menu'));
+  };
+
+  window.goToForm = window.goToForm || function(event) {
+    if (event) event.preventDefault();
+    window.APP.safeNavigate(window.APP.buildPageHref('form'));
+  };
+
+  window.goToHistory = window.goToHistory || function(event) {
+    if (event) event.preventDefault();
+    window.APP.safeNavigate(window.APP.buildPageHref('history'));
+  };
+
+  window.APP.initAppState = function() {
+    var isAppsScriptPage = window.location.protocol === 'https:' && window.location.hostname === 'script.google.com';
+    if (isAppsScriptPage) {
+      window.BASE_URL = window.location.origin + window.location.pathname;
+      try { localStorage.setItem('glboard_baseUrl', window.BASE_URL); } catch (e) {}
+    }
+    if (typeof window.BASE_URL === 'undefined' || window.BASE_URL === null) {
+      window.BASE_URL = '';
+    }
+    if (!isValidBaseUrl(window.BASE_URL)) {
+      window.BASE_URL = '';
+    }
+    var urlBase = getQueryParam('baseUrl');
+    if (!isAppsScriptPage && isValidBaseUrl(urlBase)) {
+      window.BASE_URL = urlBase.trim();
+      try { localStorage.setItem('glboard_baseUrl', window.BASE_URL); } catch (e) {}
+    } else if (!isAppsScriptPage && !isValidBaseUrl(window.BASE_URL)) {
+      try {
+        var stored = localStorage.getItem('glboard_baseUrl');
+        if (isValidBaseUrl(stored)) {
+          window.BASE_URL = stored.trim();
+        }
+      } catch (e) {}
+    }
+    if (!isValidBaseUrl(window.BASE_URL)) {
+      window.BASE_URL = DEFAULT_BASE_URL;
+    }
+    if (isValidBaseUrl(window.BASE_URL)) {
+      try { localStorage.setItem('glboard_baseUrl', window.BASE_URL); } catch (e) {}
+    }
+    restoreUserFromUrl();
+    return window.BASE_URL;
+  };
+
+  function canonicalPageName(page) {
+    var name = String(page || '').replace(/\.html$/i, '').toLowerCase();
+    var routes = {
+      login: 'login', menu: 'menu', form: 'form', history: 'history',
+      safety: 'safety', environment: 'Enviroment', eviroment: 'Enviroment',
+      quality: 'Quality', cost: 'cost', hrd: 'hrd',
+      production: 'Wproduction', wproduction: 'Wproduction',
+      dashboard: 'dashboard'
+    };
+    return routes[name] || page;
+  }
+
+  window.APP.buildPageHref = function(page) {
+    page = canonicalPageName(page);
+    var localTarget = buildLocalUrl(page);
+    if (window.location.protocol === 'file:') {
+      return localTarget;
+    }
+    var target = isValidBaseUrl(window.BASE_URL)
+      ? window.BASE_URL + '?page=' + encodeURIComponent(page)
+      : localTarget;
+    return appendUserParam(target);
+  };
+
+  function createBackToMenuButton() {
+    try {
+      var pageName = (window.APP.getQueryParam('page') || '').toString().trim();
+      if (!pageName) {
+        pageName = (window.location.pathname || '').split('/').pop().replace(/\.html$/i, '').toLowerCase();
+      }
+      pageName = pageName.toLowerCase();
+      if (!pageName || pageName === 'menu' || pageName === 'login') return;
+      if (document.getElementById('backToMenuBtn')) return;
+      if (document.querySelector('a.back-btn[href*="menu.html"], a.back-btn[onclick*="goToMenu"], a#backToMenuBtn')) return;
+      var btn = document.createElement('a');
+      btn.id = 'backToMenuBtn';
+      btn.href = window.APP.buildPageHref('menu');
+      btn.textContent = '⬅ Back to Menu';
+      btn.setAttribute('role', 'button');
+      btn.style.cssText = 'position:fixed;left:12px;bottom:12px;padding:8px 12px;background:#800000;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.18);';
+      btn.addEventListener('click', function(event) {
+        event.preventDefault();
+        window.APP.safeNavigate(window.APP.buildPageHref('menu'));
+      });
+      document.body.appendChild(btn);
+    } catch (e) {
+      console.error('Back to Menu button injection failed:', e);
+    }
+  }
+
+  function createFormLinkButtons() {
+    try {
+      if (!window.APP || typeof window.APP.buildPageHref !== 'function') return;
+      var formHref = window.APP.buildPageHref('form');
+      var anchors = Array.from(document.querySelectorAll('a'));
+      anchors.forEach(function(anchor) {
+        var text = (anchor.textContent || '').trim();
+        if (text === 'กรอกข้อมูล') {
+          if (!anchor.getAttribute('href') || anchor.getAttribute('href') === '#') {
+            anchor.setAttribute('href', formHref);
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Form link injection failed:', e);
+    }
+  }
+
+  function fixBackToMenuLinks() {
+    try {
+      if (!window.APP || typeof window.APP.buildPageHref !== 'function') return;
+      var menuHref = window.APP.buildPageHref('menu');
+      var anchors = Array.from(document.querySelectorAll('a.back-btn, a#backToMenuBtn, a[onclick*="goToMenu"]'));
+      anchors.forEach(function(anchor) {
+        var text = (anchor.textContent || '').trim();
+        if (/⬅\s*(BACK TO MENU|Back to Menu)|กลับเมนู/i.test(text) || anchor.id === 'backToMenuBtn' || /goToMenu\(/.test(anchor.getAttribute('onclick') || '')) {
+          anchor.href = menuHref;
+          anchor.setAttribute('target', '_top');
+          anchor.onclick = function(event) {
+            if (event) event.preventDefault();
+            window.APP.safeNavigate(menuHref);
+          };
+        }
+      });
+    } catch (e) {
+      console.error('Back to Menu link fix failed:', e);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      createBackToMenuButton();
+      createFormLinkButtons();
+      fixBackToMenuLinks();
+    });
+  } else {
+    createBackToMenuButton();
+    createFormLinkButtons();
+    fixBackToMenuLinks();
+  }
+})(window);
+</script>
