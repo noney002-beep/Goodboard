@@ -393,7 +393,7 @@
             <div class="mf"><span class="mf-label">👤 ผู้บันทึก</span><span style="font-weight:600;">${esc(r.Full_Name)} (${esc(r.Kumi)} / ${esc(r.Problem_Shift)})</span></div>
             <div class="mf"><span class="mf-label">รายละเอียดปัญหา</span><div class="modal-textarea">${esc(r.Detail)}</div></div>
             <div class="mf"><span class="mf-label">แนวทางแก้ไข</span><div class="modal-textarea">${esc(r.Countermeasure || "-")}</div></div>
-            ${r.Image_Name ? `<div class="mf"><span class="mf-label">รูปภาพ</span><img class="modal-img" src="${r.Image_Name}" onclick="window.open(this.src,'_blank')"></div>` : ""}
+            ${r.Image_URL ? `<div class="mf"><span class="mf-label">รูปภาพ</span><img class="modal-img" src="${r.Image_URL}" onclick="window.open(this.src,'_blank')"></div>` : ""}
           `;
         })
         .catch((err) => showToast("❌ " + err.message));

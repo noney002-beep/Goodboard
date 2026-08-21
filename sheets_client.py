@@ -16,11 +16,15 @@ sheets_client.py
 import os
 import json
 import uuid
+import base64
+import io as _io
 from datetime import datetime
 from functools import lru_cache
 
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -46,8 +50,13 @@ COLUMNS = [
     "Problem_Actual", "Problem_Target", "Problem_QTY", "QTY_Unit",
     "Unit_Problem", "Problem_Time", "Detail", "Countermeasure",
     "Image_Name", "created_at", "Full_Name", "Row_Key",
-    "SQL_Synced", "Sync_Note",
+    "SQL_Synced", "Sync_Note", "Image_URL",
 ]
+
+# (ไม่บังคับ) ใส่ Folder ID ของ Google Drive ที่ต้องการเก็บรูป โดยแชร์สิทธิ์ Editor
+# ให้กับอีเมลของ Service Account ไว้ก่อน ถ้าปล่อยว่างจะอัปโหลดไปที่ "My Drive"
+# ของ Service Account เอง (ยังใช้งานได้ปกติ เพียงแต่จัดระเบียบยากกว่า)
+DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "").strip()
 
 
 def _load_credentials() -> Credentials:
@@ -78,6 +87,46 @@ def get_worksheet():
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SPREADSHEET_ID)
     return sheet.worksheet(WORKSHEET_NAME)
+
+
+@lru_cache(maxsize=1)
+def get_drive_service():
+    """คืนค่า Google Drive API client (ใช้ Service Account เดียวกับ Sheet)"""
+    creds = _load_credentials()
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def upload_image_to_drive(base64_data: str, mime_type: str = None, filename: str = None) -> str:
+    """
+    อัปโหลดรูปภาพ (Base64) ขึ้น Google Drive แล้วเปิดสิทธิ์ให้ "ทุกคนที่มีลิงก์" ดูรูปได้
+    คืนค่าลิงก์รูปที่ใช้แสดงผลได้ตรงๆ ผ่าน <img src="...">
+    ถ้าไม่มีข้อมูลรูป (base64_data ว่าง) จะคืนค่า string ว่าง
+    """
+    if not base64_data:
+        return ""
+
+    service = get_drive_service()
+    file_bytes = base64.b64decode(base64_data)
+    media = MediaIoBaseUpload(
+        _io.BytesIO(file_bytes),
+        mimetype=mime_type or "image/jpeg",
+        resumable=False,
+    )
+    file_metadata = {"name": filename or f"problem_{uuid.uuid4().hex}.jpg"}
+    if DRIVE_FOLDER_ID:
+        file_metadata["parents"] = [DRIVE_FOLDER_ID]
+
+    uploaded = service.files().create(
+        body=file_metadata, media_body=media, fields="id"
+    ).execute()
+    file_id = uploaded.get("id")
+
+    # เปิดสิทธิ์ให้ "ทุกคนที่มีลิงก์" ดูรูปได้ (จำเป็นเพื่อให้ <img> ในเว็บ/Sheet แสดงผลได้)
+    service.permissions().create(
+        fileId=file_id, body={"role": "reader", "type": "anyone"}
+    ).execute()
+
+    return f"https://drive.google.com/uc?export=view&id={file_id}"
 
 
 def _next_empty_row(ws) -> int:
@@ -117,6 +166,22 @@ def append_problem_row(data: dict) -> str:
     record_date = data.get("record_date") or datetime.now().strftime("%Y-%m-%d")
 
     row_data = {**data, "Row_Key": row_key, "created_at": created_at, "record_date": record_date}
+
+    # อัปโหลดรูปภาพขึ้น Google Drive ถ้ามีแนบมา (ฟอร์มส่ง Image_Base64 มา แต่คอลัมน์นี้
+    # ไม่มีใน Sheet โดยตรง เพราะ Base64 ยาวเกินขีดจำกัดของ 1 cell ได้ง่าย
+    # จึงอัปโหลดขึ้น Drive แล้วเก็บแค่ลิงก์ไว้ในคอลัมน์ Image_URL แทน)
+    image_base64 = row_data.pop("Image_Base64", None)
+    image_mime = row_data.pop("Image_MimeType", None)
+    image_filename = row_data.pop("Image_FileName", None) or row_data.get("Image_Name")
+    if image_base64:
+        try:
+            image_url = upload_image_to_drive(image_base64, image_mime, image_filename)
+            row_data["Image_URL"] = image_url
+            row_data["Image_Name"] = image_filename or row_data.get("Image_Name", "")
+        except Exception as exc:
+            row_data["Image_URL"] = ""
+            print("DRIVE_UPLOAD_ERROR:", exc)
+
     # ตั้งค่า default สำหรับสถานะ sync (ไม่ต้องพึ่ง SQL อีกต่อไป
     # แต่คงคอลัมน์ไว้เผื่อยังมีระบบอื่นอ่านค่านี้อยู่)
     row_data.setdefault("SQL_Synced", "TRUE")
