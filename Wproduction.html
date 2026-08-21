@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(W) Production Real-Time Monitoring</title>
+<style>
+  :root {
+    --navy: #1f4b7c;
+    --navy-mid: #2d66a0;
+    --blue-accent: #4d80d5;
+    --blue-light: #7aa1e2;
+    --blue-bar: #3565b0;
+    --red-bar: #d42d2f;
+    --sidebar-bg: #e9f1fb;
+    --sidebar-btn: #eff4fc;
+    --sidebar-btn-active: #3c6dc8;
+    --table-header: #335d99;
+    --table-alt: #eef4fb;
+    --bg: #f8f6ef;
+    --white: #ffffff;
+    --text: #172e4d;
+    --text-light: #5f718e;
+    --border: #d3dce8;
+    --green: #157840;
+    --chart-bg: #e7eef8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .top-header {
+    display: flex; align-items: center;
+    background: #406292; color: var(--white);
+    min-height: 52px; flex-shrink: 0;
+  }
+  .header-year-panel {
+    background: #e7eef8; min-width: 200px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 10px; border-right: 2px solid #9eb6d9; flex-shrink: 0;
+  }
+  .header-year-panel .label { font-size:11px; color:#94a3b8; font-weight:700; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+  .header-title { flex:1; text-align:center; font-size:22px; font-weight:800; letter-spacing:1px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.3); }
+  .header-shift-panel {
+    background: #e7eef8; min-width: 155px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 10px; border-left: 2px solid #9eb6d9; flex-shrink: 0;
+  }
+  .header-shift-panel .label { font-size:11px; color:#94a3b8; font-weight:700; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+  .toggle-btn {
+    padding: 4px 10px; border-radius: 6px; border: 2px solid #475569;
+    background: var(--sidebar-btn); color: #cbd5e1;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+    outline: none; white-space: nowrap;
+  }
+  .toggle-btn:hover { background:#4f7bd6; color:#fff; border-color:#4f7bd6; }
+  .toggle-btn.active { background:var(--sidebar-btn-active); color:#fff; border-color:#1d4ed8; }
+  .toggle-btn.select-all { background:#334155; color:#fff; font-size:11px; padding:4px 8px; }
+  .toggle-btn.select-all.active { background:#1d4ed8; }
+  .main-layout { display:flex; flex:1; overflow:hidden; min-height:0; }
+  .sidebar {
+    width:210px; background:var(--sidebar-bg); color:#1f314b;
+    display:flex; flex-direction:column; flex-shrink:0;
+    border-right:2px solid #d3dce9; overflow-y:auto; overflow-x:hidden;
+  }
+  .sidebar-section { padding:10px 10px 8px 10px; border-bottom:1px solid #334155; }
+  .sidebar-section-title { font-size:11px; font-weight:800; color:#38bdf8; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; padding-left:2px; }
+  .month-trigger-btn {
+    width:100%; padding:7px 10px; border-radius:7px; border:1.5px solid #475569;
+    background:#334155; color:#7dd3fc; font-size:12px; font-weight:700;
+    cursor:pointer; text-align:center; transition:background .15s; outline:none;
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+  }
+  .month-trigger-btn:hover { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .month-trigger-btn.has-selection { background:#1d4ed8; color:#fff; border-color:#60a5fa; }
+  .month-trigger-btn .arrow { font-size:10px; transition:transform .2s; }
+  .month-trigger-btn.open .arrow { transform:rotate(180deg); }
+  .month-popup-overlay { display:none; position:fixed; inset:0; z-index:100; background:transparent; }
+  .month-popup-overlay.visible { display:block; }
+  .month-popup {
+    position:fixed; z-index:101; background:#1e293b; border:1.5px solid #334155;
+    border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.45);
+    padding:12px; width:220px; display:none;
+  }
+  .month-popup.visible { display:block; }
+  .month-popup-title { font-size:11px; font-weight:800; color:#38bdf8; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+  .month-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; }
+  .kumi-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .sidebar-btn {
+    padding:6px 4px; border-radius:6px; border:1px solid #cbd5e1;
+    background:#d8e3f2; color:#1f314b; font-size:11px; font-weight:600;
+    cursor:pointer; text-align:center; transition:background .15s, color .15s; outline:none;
+  }
+  .sidebar-btn:hover { background:#4f7bd6; color:#fff; border-color:#4f7bd6; }
+  .sidebar-btn.active { background:#1d4ed8; color:#fff; border-color:#60a5fa; }
+  .sidebar-btn.select-all-month { grid-column:1/-1; background:#1e3a5f; color:#7dd3fc; font-size:11px; }
+  .sidebar-btn.select-all-month.active { background:#1d4ed8; color:#fff; }
+  .sidebar-btn.kumi-full { grid-column:1/-1; }
+  .sidebar-bottom { margin-top:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+  .back-btn {
+    display:flex; align-items:center; gap:8px;
+    background:#eef4fb; border:1.5px solid #cbd5e1;
+    color:#1f314b; font-size:12px; font-weight:700;
+    padding:7px 10px; border-radius:7px; cursor:pointer; transition:background .15s; text-decoration:none;
+  }
+  .back-btn:hover { background:#1e293b; color:#fff; }
+  .clear-btn {
+    background:#2563eb; color:#fff; border:none;
+    border-radius:20px; font-size:13px; font-weight:700;
+    padding:9px 16px; cursor:pointer; transition:background .15s;
+  }
+  .clear-btn:hover { background:#1d4ed8; }
+  .content {
+    flex:1; display:flex; flex-direction:column;
+    padding:8px 10px; gap:8px;
+    overflow-y:auto; overflow-x:hidden; min-width:0; min-height:0;
+  }
+  .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; flex-shrink:0; min-width:0; }
+  .chart-card { background:var(--white); border-radius:10px; box-shadow:0 1px 6px rgba(30,58,138,.1); overflow:hidden; min-width:0; }
+  .chart-header { background:var(--blue-light); color:#fff; font-size:14px; font-weight:800; padding:6px 14px; text-align:center; letter-spacing:.5px; }
+  .chart-body { padding:6px 10px; min-width:0; }
+  .bar-chart-wrap { width:100%; overflow:hidden; min-width:0; }
+  svg.bar-chart { display:block; width:100%; height:auto; }
+  .mini-chart-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; flex-shrink:0; min-width:0; }
+  .mini-card { background:var(--white); border-radius:8px; box-shadow:0 1px 4px rgba(30,58,138,.08); overflow:hidden; min-width:0; }
+  .mini-header { background:var(--blue-light); color:#fff; font-size:13px; font-weight:800; padding:6px 4px; text-align:center; }
+  .mini-body { padding:6px 4px 4px 4px; min-width:0; }
+  .mini-body svg { display:block; width:100%; height:auto; }
+
+  .table-card { background:var(--white); border-radius:10px; box-shadow:0 1px 6px rgba(30,58,138,.1); overflow:hidden; flex-shrink:0; min-width:0; }
+  .table-scroll-wrap {
+    width:100%; overflow-x:hidden;
+    scrollbar-width:thin; scrollbar-color:#93c5fd #e8eef7;
+  }
+  .table-scroll-wrap::-webkit-scrollbar { height:5px; }
+  .table-scroll-wrap::-webkit-scrollbar-track { background:#e8eef7; border-radius:3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb { background:#93c5fd; border-radius:3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb:hover { background:#2563eb; }
+
+  .data-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .data-table thead tr { background:var(--table-header); color:#fff; }
+  .data-table thead th {
+    padding: 7px 4px;
+    font-weight: 700;
+    text-align: center;
+    border-right: 1px solid #1d4ed8;
+    white-space: normal;
+    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-table tbody tr:nth-child(even) { background:var(--table-alt); }
+  .data-table tbody tr:hover { background:#bfdbfe55; }
+  .data-table tbody td {
+    padding: 6px 4px;
+    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-table tbody td:nth-child(3),
+  .data-table tbody td:nth-child(4),
+  .data-table tbody td:nth-child(5),
+  .data-table tbody td:nth-child(6),
+  .data-table tbody td.td-problem {
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+  }
+  .data-table tbody td.td-problem { text-align:left; }
+  .data-table tfoot tr { background:#1e3a8a; color:#fff; font-weight:800; }
+  .data-table tfoot td { padding:7px 8px; text-align:center; }
+  .table-loading { text-align:center; padding:16px; color:var(--text-light); font-size:12px; }
+
+  .badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:700; }
+  .badge-Safety      { background:#fde8e8; color:#c0392b; }
+  .badge-Environment { background:#e8f8ed; color:#1e8449; }
+  .badge-Quality     { background:#e8f3fd; color:#1a5276; }
+  .badge-Production  { background:#fef9e7; color:#9a6c00; }
+  .badge-Cost        { background:#f4ecfd; color:#6c3483; }
+  .badge-HRD         { background:#e8f8f5; color:#0e6655; }
+  .shift-white  { color:#1a5276; font-weight:700; font-size:11px; }
+  .shift-yellow { color:#9a6c00; font-weight:700; font-size:11px; }
+  .tooltip {
+    position:fixed; z-index:999;
+    background:#1e293b; color:#fff;
+    padding:5px 10px; border-radius:6px;
+    font-size:11px; pointer-events:none;
+    display:none; box-shadow:0 4px 16px rgba(0,0,0,.3);
+  }
+</style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="month-popup-overlay" id="monthOverlay" onclick="closeMonthPopup()"></div>
+<div class="month-popup" id="monthPopup">
+  <div class="month-popup-title">Month Name</div>
+  <div class="month-grid">
+    <button class="sidebar-btn select-all-month active" onclick="toggleMonth('all')">Select all</button>
+    <button class="sidebar-btn" id="m-Jan" onclick="toggleMonth('Jan')">January</button>
+    <button class="sidebar-btn" id="m-Feb" onclick="toggleMonth('Feb')">February</button>
+    <button class="sidebar-btn" id="m-Mar" onclick="toggleMonth('Mar')">March</button>
+    <button class="sidebar-btn" id="m-Apr" onclick="toggleMonth('Apr')">April</button>
+    <button class="sidebar-btn" id="m-May" onclick="toggleMonth('May')">May</button>
+    <button class="sidebar-btn" id="m-Jun" onclick="toggleMonth('Jun')">June</button>
+    <button class="sidebar-btn" id="m-Jul" onclick="toggleMonth('Jul')">July</button>
+    <button class="sidebar-btn" id="m-Aug" onclick="toggleMonth('Aug')">August</button>
+    <button class="sidebar-btn" id="m-Sep" onclick="toggleMonth('Sep')">September</button>
+    <button class="sidebar-btn" id="m-Oct" onclick="toggleMonth('Oct')">October</button>
+    <button class="sidebar-btn" id="m-Nov" onclick="toggleMonth('Nov')">November</button>
+    <button class="sidebar-btn" id="m-Dec" onclick="toggleMonth('Dec')">December</button>
+  </div>
+</div>
+
+<div class="top-header">
+  <div class="header-year-panel">
+    <span class="label">Year</span>
+    <button class="toggle-btn select-all active" id="yr-all" onclick="toggleYear('all')">Select all</button>
+    <div id="yearButtonsContainer"></div>
+  </div>
+  <div class="header-title">(W) Production Real-Time Monitoring</div>
+  <div class="header-shift-panel">
+    <span class="label">Shift</span>
+    <button class="toggle-btn select-all active" id="sh-all" onclick="toggleShift('all')">Select all</button>
+    <button class="toggle-btn" id="sh-w" onclick="toggleShift('W')">W</button>
+    <button class="toggle-btn" id="sh-y" onclick="toggleShift('Y')">Y</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Month Name</div>
+      <button class="month-trigger-btn" id="monthTriggerBtn" onclick="toggleMonthPopup(event)">
+        <span id="monthBtnLabel">Select all</span>
+        <span class="arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Kumi</div>
+      <div class="kumi-grid">
+        <button class="sidebar-btn kumi-full select-all-month active" onclick="toggleKumi('all')">Select all</button>
+        <button class="sidebar-btn" id="k-CAB3" onclick="toggleKumi('CAB3')">CAB3 and Fr. Floor</button>
+        <button class="sidebar-btn" id="k-RrFloor" onclick="toggleKumi('RrFloor')">Rr. Floor</button>
+        <button class="sidebar-btn" id="k-SideMenber" onclick="toggleKumi('SideMenber')">Side Menber</button>
+        <button class="sidebar-btn" id="k-DeckSlat" onclick="toggleKumi('DeckSlat')">Deck and Slat</button>
+        <button class="sidebar-btn" id="k-Shell3" onclick="toggleKumi('Shell3')">Shell3</button>
+        <button class="sidebar-btn" id="k-Shell3RH" onclick="toggleKumi('Shell3RH')">Shell3 Roller Hem</button>
+        <button class="sidebar-btn" id="k-Logistics" onclick="toggleKumi('Logistics')">Logistics</button>
+        <button class="sidebar-btn" id="k-Inspection" onclick="toggleKumi('Inspection')">Inspection</button>
+      </div>
+    </div>
+    <div class="sidebar-bottom">
+        <a id="goToFormBtn" href="form.html" class="back-btn">กรอกข้อมูล</a>
+        <a id="goToHistoryBtn" href="history.html" class="back-btn">ประวัติ</a>
+        <a id="backToMenuBtn" href="menu.html" class="back-btn">⬅ BACK TO MENU</a>
+      <button class="clear-btn" onclick="clearAllSelections()">Clear All Select</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-header">% (W) Eff</div>
+        <div class="chart-body">
+          <div class="bar-chart-wrap">
+            <svg class="bar-chart" id="effChart" width="100%" height="160" viewBox="0 0 640 160" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">(W) Stop Time by Hourly</div>
+        <div class="chart-body">
+          <div class="bar-chart-wrap">
+            <svg class="bar-chart" id="stopChart" width="100%" height="160" viewBox="0 0 640 160" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mini-chart-row">
+      <div class="mini-card">
+        <div class="mini-header">NW &amp; FW</div>
+        <div class="mini-body"><svg id="miniNW" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Quality</div>
+        <div class="mini-body"><svg id="miniQuality" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Process Delay</div>
+        <div class="mini-body"><svg id="miniProcess" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">EQ_MTN</div>
+        <div class="mini-body"><svg id="miniEQMTN" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">EQ_W</div>
+        <div class="mini-body"><svg id="miniEQW" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Logistic</div>
+        <div class="mini-body"><svg id="miniLogistic" width="100%" height="180" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet"></svg></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll-wrap">
+        <table class="data-table">
+          <colgroup>
+            <col style="width:7%">
+            <col style="width:10%">
+            <col style="width:8%">
+            <col style="width:7%">
+            <col style="width:7%">
+            <col style="width:10%">
+            <col style="width:5%">
+            <col style="width:6%">
+            <col style="width:14%">
+            <col style="width:8%">
+            <col style="width:9%">
+            <col style="width:9%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Kumi</th>
+              <th>Main KPI</th>
+              <th>Sub KPI</th>
+              <th>Process KPI</th>
+              <th>ช่วงเวลา</th>
+              <th>Shift</th>
+              <th>Mins</th>
+              <th>Problem</th>
+              <th>KPI Monitor</th>
+              <th>Target</th>
+              <th>Actual</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="20" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="11">Total</td>
+              <td id="totalActual">0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let selectedYears = ['all'];
+let selectedShifts = ['all'];
+let selectedMonths = ['all'];
+let selectedKumis = ['all'];
+const BASE_URL = (window.APP && typeof APP.initAppState === 'function') ? APP.initAppState() : '';
+let allApiRecords = [];
+let debounceTimer = null;
+
+function goToMenu(event){
+  if(event) event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('menu'));
+  else window.location.href = 'menu.html';
+}
+function goToForm(event){
+  if(event) event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('form'));
+  else window.location.href = 'form.html';
+}
+function goToHistory(event){
+  if(event) event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('history'));
+  else window.location.href = 'history.html';
+}
+function toggleMonthPopup(e) {
+  e.stopPropagation();
+  const btn = document.getElementById('monthTriggerBtn');
+  const popup = document.getElementById('monthPopup');
+  const overlay = document.getElementById('monthOverlay');
+  if (popup.classList.contains('visible')) { closeMonthPopup(); return; }
+  const rect = btn.getBoundingClientRect();
+  popup.style.left = rect.left + 'px';
+  popup.style.top = (rect.bottom + 4) + 'px';
+  popup.classList.add('visible'); overlay.classList.add('visible'); btn.classList.add('open');
+}
+function closeMonthPopup() {
+  document.getElementById('monthPopup').classList.remove('visible');
+  document.getElementById('monthOverlay').classList.remove('visible');
+  document.getElementById('monthTriggerBtn').classList.remove('open');
+}
+function updateMonthBtnLabel() {
+  const btn = document.getElementById('monthTriggerBtn');
+  const lbl = document.getElementById('monthBtnLabel');
+  if (selectedMonths.includes('all') || selectedMonths.length === 0) { lbl.textContent = 'Select all'; btn.classList.remove('has-selection'); }
+  else if (selectedMonths.length === 1) { lbl.textContent = selectedMonths[0]; btn.classList.add('has-selection'); }
+  else { lbl.textContent = selectedMonths.length + ' months'; btn.classList.add('has-selection'); }
+}
+
+function parseCsvLine(line){
+  const values=[]; let cur=''; let inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){
+      if(inQuotes && line[i+1]==='"'){cur+='"'; i++;}
+      else{inQuotes=!inQuotes;}
+    }else if(ch===',' && !inQuotes){values.push(cur); cur='';}
+    else{cur+=ch;}
+  }
+  values.push(cur);
+  return values.map(v=>v.trim());
+}
+
+function parseCsv(text){
+  const rows=[];
+  const lines=text.split(/\r?\n/).map(l=>l.trimEnd());
+  if(!lines.length || !lines[0].trim()) return rows;
+  const headers=parseCsvLine(lines[0]);
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const values=parseCsvLine(lines[i]);
+    const obj={};
+    headers.forEach((header,idx)=>{obj[header]=values[idx]||'';});
+    rows.push(obj);
+  }
+  return rows;
+}
+
+async function loadAllRecords() {
+  document.getElementById('tableBody').innerHTML = '<tr><td colspan="12" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>';
+  try {
+    const params={page:1,per_page:200,sort_col:'record_date',sort_dir:'desc'};
+    // 1) Try Apps Script endpoint when configured
+    if (typeof BASE_URL === 'string' && BASE_URL) {
+      try{
+        const resp = await fetch(BASE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'getMonitoringData', args:[params] }) });
+        if (resp.ok){ const json=await resp.json(); if(json && Array.isArray(json.records)){ allApiRecords = json.records; applyFiltersAndRender(); return; } }
+      }catch(e){ console.warn('Apps Script fetch failed:', e.message); }
+    }
+
+    // 2) Try local Python API when served via http(s)
+    if (window.location.host) {
+      const allRec = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const query = new URLSearchParams(Object.assign({ page, per_page: 200, sort_col: 'record_date', sort_dir: 'desc' }, params));
+        const url = '/api/records?' + query.toString();
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const json = await resp.json();
+        allRec.push(...(json.records || []));
+        totalPages = json.pages || 1;
+        page += 1;
+      } while (page <= totalPages);
+      allApiRecords = allRec.map(r => ({
+        kpi: (r.kpi || r.KPI || r.Kpi || '').trim(),
+        record_date: (r.record_date || r.record_date || r.Problem_Date || r.Problem_Date || '').trim(),
+        problem_date: r.Problem_Date || r.record_date || '',
+        kumi: r.kumi || r.Kumi || r.KUMI || '',
+        main_kpi: r.main_kpi || r.Main_KPI || r.Main_Kpi || '',
+        sub_kpi: r.sub_kpi || r.Sub_KPI || r.Sub_Kpi || '',
+        process_kpi: r.process_kpi || r.Process_PKI || r.Process_KPI || '',
+        problem_detail: r.problem_detail || r.Detail || '',
+        problem_time: r.problem_time || r.Problem_Time || '',
+        shift: r.shift || r.Problem_Shift || '',
+        problem_hour: r.problem_hour || r.Problem_Hour || '',
+        target: r.target || r.Problem_Target || r.Problem_QTY || '',
+        actual: r.actual || r.Problem_Actual || '',
+        unit_problem: r.unit_problem || r.Unit_Problem || r.QTY_Unit || ''
+      }));
+      applyFiltersAndRender();
+      return;
+    }
+
+    // 3) CSV fallback (file:// or if other methods failed)
+    const sheetUrl='https://docs.google.com/spreadsheets/d/1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E/export?format=csv&gid=2045278866';
+    const response=await fetch(sheetUrl,{cache:'no-store'});
+    if(!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้');
+    const csv=await response.text();
+    const rows=parseCsv(csv);
+    const records=rows.filter(r=>(r.KPI||'').trim().toLowerCase()==='production').map(r=>({
+      kpi:(r.KPI||'').trim(),
+      record_date:r.record_date || r.Problem_Date || '',
+      problem_date:r.Problem_Date || r.record_date || '',
+      kumi:r.Kumi || '',
+      main_kpi:r.Main_KPI || '',
+      sub_kpi:r.Sub_KPI || '',
+      process_kpi:r.Process_PKI || r.Process_KPI || '',
+      problem_detail:r.Detail || '',
+      problem_time:r.Problem_Time || '',
+      shift:r.Problem_Shift || '',
+      problem_hour:r.Problem_Hour || '',
+      target:r.Problem_Target || r.Problem_QTY || '',
+      actual:r.Problem_Actual || '',
+      unit_problem:r.Unit_Problem || r.QTY_Unit || ''
+    }));
+    allApiRecords = records; applyFiltersAndRender();
+  } catch(err) {
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="12" class="table-loading">❌ โหลดข้อมูลล้มเหลว: ${err.message}</td></tr>`;
+  }
+}
+
+function applyFiltersAndRender() {
+  const MS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const kumiKeyMap = { CAB3:'CAB3', RrFloor:'Rr.', SideMenber:'Side', DeckSlat:'Deck', Shell3:'Shell3', Shell3RH:'Roller', Logistics:'Logistic', Inspection:'Inspect' };
+  const filtered = allApiRecords.filter(r => {
+    if ((r.kpi || '').trim().toLowerCase() !== 'production') return false;
+    const dp = (r.record_date || '').split('-');
+    const ry = dp[0] || '', rm = MS[parseInt(dp[1] || '0', 10) - 1] || '';
+    if (!selectedYears.includes('all') && !selectedYears.includes(ry)) return false;
+    if (!selectedMonths.includes('all') && !selectedMonths.includes(rm)) return false;
+    if (!selectedShifts.includes('all')) {
+      const sv = (r.shift || '').toLowerCase();
+      if (!selectedShifts.some(s => (s === 'W' && sv.includes('white')) || (s === 'Y' && sv.includes('yellow')))) return false;
+    }
+    if (!selectedKumis.includes('all')) {
+      if (!selectedKumis.some(k => r.kumi && r.kumi.toLowerCase().includes((kumiKeyMap[k] || k).toLowerCase()))) return false;
+    }
+    return true;
+  });
+  const mapped = filtered.map(apiToRow);
+  renderTable(mapped);
+  buildEffChart(mapped);
+  buildStopChart(mapped);
+  buildMiniCharts(mapped);
+}
+
+function getDateGroups(rows) {
+  const dayMode = !(selectedMonths.includes('all') || selectedMonths.length === 0);
+  const map = new Map();
+  rows.forEach(r => {
+    if (!r.record_date) return;
+    const d = r.record_date.slice(0, 10);
+    const key = dayMode ? d : d.slice(0, 7);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  });
+  const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, items]) => {
+      let label;
+      if (dayMode) {
+        const [, mo, da] = key.split('-');
+        label = `${da} ${monthShort[parseInt(mo, 10) - 1] || ''}`;
+      } else {
+        const [yr, mo] = key.split('-');
+        label = `${monthShort[parseInt(mo, 10) - 1] || ''}-${yr.slice(2)}`;
+      }
+      return { key, label, items };
+    });
+}
+function avg(arr) { if (!arr.length) return 0; return arr.reduce((a, b) => a + b, 0) / arr.length; }
+function round2(v) { return Math.round(v * 100) / 100; }
+
+function apiToRow(r) {
+  let tr = r.problem_time || '-';
+  if (r.problem_time && r.problem_time !== '-' && r.problem_time.includes(':')) {
+    const [h, m] = r.problem_time.split(':').map(Number);
+    tr = `${r.problem_time} - ${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  return {
+    record_date : r.problem_date || '',
+    kumi        : r.kumi || '',
+    main_kpi    : r.main_kpi || '',
+    sub_kpi2    : r.sub_kpi || '',
+    process_kpi : r.process_kpi || '',
+    time_range  : tr,
+    shift       : r.shift || '',
+    mins        : r.problem_hour || '0',
+    problem     : r.problem_detail || '',
+    kpi_mon     : r.shift || '',
+    target      : r.target || '',
+    actual      : r.actual || '',
+    unit        : r.unit_problem || ''
+  };
+}
+
+function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function shiftSpan(s) { const c = s && s.toLowerCase().includes('white') ? 'shift-white' : 'shift-yellow'; return `<span class="${c}">${esc(s)}</span>`; }
+function actualColor(a, t) { const av = parseFloat(a), tv = parseFloat(t); if (isNaN(av) || isNaN(tv) || tv === 0) return 'inherit'; return av >= tv ? '#1e8449' : '#c0392b'; }
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="table-loading">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>';
+    document.getElementById('totalActual').textContent='0.00';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td title="${esc(r.record_date)}">${esc(r.record_date)}</td>
+    <td style="font-weight:600;text-align:left" title="${esc(r.kumi)}">${esc(r.kumi)}</td>
+    <td title="${esc(r.main_kpi)}">${esc(r.main_kpi)}</td>
+    <td style="color:var(--text-light)" title="${esc(r.sub_kpi2)}">${esc(r.sub_kpi2)}</td>
+    <td style="color:var(--text-light)" title="${esc(r.process_kpi)}">${esc(r.process_kpi)}</td>
+    <td style="font-size:10px;font-family:monospace" title="${esc(r.time_range)}">${esc(r.time_range)}</td>
+    <td>${shiftSpan(r.shift)}</td>
+    <td>${esc(r.mins)}</td>
+    <td class="td-problem" title="${esc(r.problem)}">${esc(r.problem)}</td>
+    <td title="${esc(r.kpi_mon)}">${esc(r.kpi_mon)}</td>
+    <td>${esc(r.target)} ${esc(r.unit)}</td>
+    <td style="color:${actualColor(r.actual,r.target)};font-weight:700">${esc(r.actual)} ${esc(r.unit)}</td>
+  </tr>`).join('');
+  const totalActual = rows.reduce((s, r) => s + (parseFloat(r.actual) || 0), 0);
+  const unitRow = rows.find(r => r.unit);
+  document.getElementById('totalActual').textContent = totalActual.toFixed(2) + (unitRow && unitRow.unit ? ' ' + unitRow.unit : '');
+}
+
+function buildEffChart(rows) {
+  const src = rows.filter(r => r.main_kpi && r.record_date);
+  const groups = getDateGroups(src);
+  const labels  = groups.length ? groups.map(g => g.label) : ['-'];
+  const targets = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.target)).filter(v => !isNaN(v)))) : [0];
+  const actuals = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.actual)).filter(v => !isNaN(v)))) : [0];
+  renderDualChart('effChart', labels, targets, actuals);
+}
+
+function buildStopChart(rows) {
+  const src = rows.filter(r => r.sub_kpi2 && r.record_date);
+  const groups = getDateGroups(src);
+  const labels  = groups.length ? groups.map(g => g.label) : ['-'];
+  const targets = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.target)).filter(v => !isNaN(v)))) : [0];
+  const actuals = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.actual)).filter(v => !isNaN(v)))) : [0];
+  renderDualChart('stopChart', labels, targets, actuals, { pL: 28, pB: 40 });
+}
+
+const miniCategories = [
+  { id: 'miniNW',       test: p => /(n[\/\s-]*w|f[\/\s-]*w)/i.test(p) },
+  { id: 'miniQuality',  test: p => /quality/i.test(p) },
+  { id: 'miniProcess',  test: p => /process/i.test(p) },
+  { id: 'miniEQMTN',    test: p => /eq[_\s-]?mtn/i.test(p) },
+  { id: 'miniEQW',      test: p => /eq[_\s-]?w\b/i.test(p) },
+  { id: 'miniLogistic', test: p => /logistic/i.test(p) },
+];
+function buildMiniCharts(rows) {
+  miniCategories.forEach(cat => {
+    const src = rows.filter(r => r.process_kpi && r.record_date && cat.test(r.process_kpi));
+    const groups = getDateGroups(src);
+    const labels  = groups.length ? groups.map(g => g.label) : ['-'];
+    const targets = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.target)).filter(v => !isNaN(v)))) : [0];
+    const actuals = groups.length ? groups.map(g => avg(g.items.map(r => parseFloat(r.actual)).filter(v => !isNaN(v)))) : [0];
+    renderDualChart(cat.id, labels, targets, actuals, {
+      W: 360, H: 180, pL: 28, pT: 14, pB: 36, gridCount: 3,
+      fontLabel: 9, fontVal: 9, rotate: -30, legend: false, dotR: 2.5, minBar: 4
+    });
+  });
+}
+
+/* ====================================================================
+   renderDualChart — แท่ง Actual (ฟ้า≥Target / แดง<Target)
+                   + Target เป็นเส้นประแนวนอน (เหมือน Safety)
+                   สีแท่งยังคงเป็นสีเดิมของ Production (ฟ้า/แดง)
+   ==================================================================== */
+function renderDualChart(svgId, labels, targets, actuals, opts = {}) {
+  const svg = document.getElementById(svgId); if (!svg) return;
+  const W = opts.W ?? 640, H = opts.H ?? 160;
+  const pL = opts.pL ?? 36, pR = opts.pR ?? 8, pT = opts.pT ?? 16, pB = opts.pB ?? 44;
+  const cW = W - pL - pR, cH = H - pT - pB;
+  if (!labels.length) { svg.innerHTML = ''; return; }
+  const gridCount = opts.gridCount ?? 4;
+  const fontLabel = opts.fontLabel ?? 8;
+  const fontVal   = opts.fontVal ?? 8;
+  const rotate    = opts.rotate ?? -35;
+  const legend    = opts.legend !== false;
+
+  /* หา target ที่เป็นตัวแทน: ใช้ค่า target แรกที่ > 0 เป็นเส้นประแนวนอน */
+  const targetLine = targets.find(t => t > 0) || 0;
+
+  const mv = Math.max(...[...actuals].filter(v => !isNaN(v)), targetLine, 1) * 1.1;
+  const n  = labels.length, gW = cW / n, bW = Math.max(opts.minBar ?? 3, gW * (opts.barRatio ?? 0.5));
+  let h = '';
+
+  /* grid lines */
+  for (let i = 0; i <= gridCount; i++) {
+    const y = pT + cH - (i / gridCount) * cH;
+    h += `<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="#e2e8f0" stroke-width="1"/>`;
+    h += `<text x="${pL-3}" y="${y+4}" text-anchor="end" font-size="9" fill="#94a3b8">${Math.round(mv*i/gridCount)}</text>`;
+  }
+
+  /* bars + x-axis labels */
+  labels.forEach((lbl, i) => {
+    const cx = pL + i * gW + gW / 2;
+    const aV = actuals[i] || 0;
+    const aH = aV <= 0 ? 0 : (aV / mv) * cH, aY = pT + cH - aH;
+    const aC = aV >= targetLine ? '#1d6fcc' : '#dc2626';
+    if (aV > 0) h += `<rect x="${cx-bW/2}" y="${aY}" width="${bW}" height="${aH}" rx="2" fill="${aC}" opacity="0.9" onmouseenter="showTip(event,'${lbl} Actual: ${aV.toFixed(1)}')" onmouseleave="hideTip()"/>`;
+    if (aV > 0) h += `<text x="${cx}" y="${aY-3}" text-anchor="middle" font-size="${fontVal}" fill="${aC}" font-weight="700">${aV.toFixed(0)}</text>`;
+    /* label ใต้แกน X — เหมือน Safety */
+    h += `<text x="${cx}" y="${H-pB+13}" text-anchor="middle" font-size="${fontLabel}" fill="#64748b" transform="rotate(${rotate},${cx},${H-pB+13})">${lbl}</text>`;
+  });
+
+  /* Target: เส้นประแนวนอนเส้นเดียว (เหมือน Safety) */
+  if (targetLine > 0) {
+    const tY = pT + cH - (targetLine / mv) * cH;
+    h += `<line x1="${pL}" y1="${tY}" x2="${W-pR}" y2="${tY}" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="5,3" onmouseenter="showTip(event,'Target: ${targetLine}')" onmouseleave="hideTip()"/>`;
+    h += `<text x="${W-pR-2}" y="${Math.max(pT+8, tY-4)}" text-anchor="end" font-size="9" fill="#1d4ed8" font-weight="700">Target ${targetLine.toFixed(0)}</text>`;
+  }
+
+  /* axes */
+  h += `<line x1="${pL}" y1="${pT+cH}" x2="${W-pR}" y2="${pT+cH}" stroke="#94a3b8" stroke-width="1.5"/>`;
+  h += `<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+cH}" stroke="#94a3b8" stroke-width="1.5"/>`;
+
+  /* legend */
+  if (legend) {
+    const lY = H - 5;
+    h += `<line x1="${pL}" y1="${lY-4}" x2="${pL+16}" y2="${lY-4}" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="5,3"/><text x="${pL+20}" y="${lY}" font-size="9" fill="#64748b">Target</text>`;
+    h += `<rect x="${pL+68}" y="${lY-8}" width="10" height="8" rx="1" fill="#1d6fcc"/><text x="${pL+81}" y="${lY}" font-size="9" fill="#64748b">Actual (≥Target)</text>`;
+    h += `<rect x="${pL+185}" y="${lY-8}" width="10" height="8" rx="1" fill="#dc2626"/><text x="${pL+198}" y="${lY}" font-size="9" fill="#64748b">Actual (&lt;Target)</text>`;
+  }
+
+  svg.innerHTML = h;
+}
+
+function showTip(e,text){const t=document.getElementById('tooltip');t.textContent=text;t.style.display='block';t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-28)+'px';}
+function hideTip(){document.getElementById('tooltip').style.display='none';}
+
+// Generate year buttons dynamically
+(function() {
+  var container = document.getElementById('yearButtonsContainer');
+  if (!container) return;
+  var currentYear = new Date().getFullYear();
+  var startYear = 2024;
+  var endYear = currentYear + 1;
+  for (var y = startYear; y <= endYear; y++) {
+    var btn = document.createElement('button');
+    btn.className = 'toggle-btn';
+    btn.id = 'yr-' + y;
+    btn.textContent = y.toString();
+    btn.onclick = function(year) { return function() { toggleYear(year.toString()); }; }(y);
+    container.appendChild(btn);
+  }
+})();
+
+function toggleYear(yr){
+  if(yr==='all'){selectedYears=['all'];var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,false));setA('yr-all',true);}
+  else{selectedYears=selectedYears.filter(v=>v!=='all');const idx=selectedYears.indexOf(yr);idx>=0?selectedYears.splice(idx,1):selectedYears.push(yr);setA('yr-all',false);var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,selectedYears.includes(b.id.substring(3))));if(!selectedYears.length){selectedYears=['all'];setA('yr-all',true);}}
+  debouncedRender();
+}
+function toggleShift(sh){
+  if(sh==='all'){selectedShifts=['all'];setA('sh-w',false);setA('sh-y',false);setA('sh-all',true);}
+  else{selectedShifts=selectedShifts.filter(v=>v!=='all');const idx=selectedShifts.indexOf(sh);idx>=0?selectedShifts.splice(idx,1):selectedShifts.push(sh);setA('sh-all',false);['W','Y'].forEach(s=>setA('sh-'+s,selectedShifts.includes(s)));if(!selectedShifts.length){selectedShifts=['all'];setA('sh-all',true);}}
+  debouncedRender();
+}
+function toggleMonth(m){
+  const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(m==='all'){selectedMonths=['all'];ms.forEach(mn=>setA('m-'+mn,false));document.querySelector('#monthPopup .select-all-month').classList.add('active');}
+  else{selectedMonths=selectedMonths.filter(v=>v!=='all');document.querySelector('#monthPopup .select-all-month').classList.remove('active');const idx=selectedMonths.indexOf(m);idx>=0?selectedMonths.splice(idx,1):selectedMonths.push(m);ms.forEach(mn=>setA('m-'+mn,selectedMonths.includes(mn)));if(!selectedMonths.length){selectedMonths=['all'];document.querySelector('#monthPopup .select-all-month').classList.add('active');}}
+  updateMonthBtnLabel(); debouncedRender();
+}
+function toggleKumi(k){
+  const ks=['CAB3','RrFloor','SideMenber','DeckSlat','Shell3','Shell3RH','Logistics','Inspection'];
+  if(k==='all'){selectedKumis=['all'];ks.forEach(ki=>setA('k-'+ki,false));document.querySelector('.kumi-grid .select-all-month')?.classList.add('active');}
+  else{selectedKumis=selectedKumis.filter(v=>v!=='all');const idx=selectedKumis.indexOf(k);idx>=0?selectedKumis.splice(idx,1):selectedKumis.push(k);ks.forEach(ki=>setA('k-'+ki,selectedKumis.includes(ki)));if(!selectedKumis.length)selectedKumis=['all'];}
+  debouncedRender();
+}
+function clearAllSelections(){
+  selectedYears=['all'];selectedShifts=['all'];selectedMonths=['all'];selectedKumis=['all'];
+  ['yr-all','sh-all'].forEach(id=>setA(id,true));
+  ['yr-2024','yr-2025','yr-2026','sh-w','sh-y'].forEach(id=>setA(id,false));
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.select-all-month').forEach(b=>b.classList.add('active'));
+  updateMonthBtnLabel(); debouncedRender();
+}
+function setA(id,on){const el=document.getElementById(id);if(el)on?el.classList.add('active'):el.classList.remove('active');}
+function debouncedRender(){clearTimeout(debounceTimer);debounceTimer=setTimeout(applyFiltersAndRender,80);}
+
+loadAllRecords();
+
+function startRealtime(){ if(typeof EventSource==='undefined') return; try{ var es=new EventSource('/api/stream'); es.onmessage=function(ev){ try{ var payload=JSON.parse(ev.data); if(payload && payload.records){ allApiRecords=payload.records; applyFiltersAndRender(); } }catch(err){console.error('stream parse',err);} }; es.onerror=function(){ setTimeout(startRealtime,5000); }; }catch(e){console.error('SSE failed',e);} }
+startRealtime();
+</script>
+</body>
+</html>

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(W) Cost Real-Time Monitoring</title>
+<style>
+  :root {
+    --primary:       #675c88;
+    --primary-dark:  #4e4570;
+    --primary-light: #8b82b0;
+    --primary-pale:  #ede9f5;
+    --primary-muted: #7d77a1;
+    --sidebar-bg:    #eef0f7;
+    --sidebar-btn:   #f5f4fb;
+    --sidebar-active: #7f7ab8;
+    --bg:            #f8f6ef;
+    --surface:       #ffffff;
+    --text:          #2f2b46;
+    --text-light:    #67617f;
+    --border:        #d7d2e3;
+    --table-alt:     #f8f6fb;
+    --table-header:  #5a4d8b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  /* ── Top Header ── */
+  .top-header {
+    display: flex; align-items: center;
+    background: linear-gradient(135deg, #625f8a 0%, #918fbb 40%, #eef0f8 100%);
+    color: #fff;
+    min-height: 52px; flex-shrink: 0;
+    border-bottom: 2px solid var(--primary);
+  }
+  .header-year-panel {
+    background: rgba(255,255,255,.22); min-width: 200px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 12px; border-right: 1px solid rgba(255,255,255,.25); flex-shrink: 0;
+  }
+  .header-year-panel .label {
+    font-size: 10px; color: rgba(255,255,255,.92); font-weight: 700;
+    letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap;
+  }
+  .header-title {
+    flex: 1; text-align: center; font-size: 30px; font-weight: 700;
+    letter-spacing: .5px; color: #fdfcff;
+  }
+  .header-shift-panel {
+    background: rgba(255,255,255,.24); min-width: 155px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 12px; border-left: 1px solid rgba(255,255,255,.25); flex-shrink: 0;
+  }
+  .header-shift-panel .label {
+    font-size: 10px; color: rgba(255,255,255,.82); font-weight: 700;
+    letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap;
+  }
+  /* ── Toggle Buttons (header) ── */
+  .toggle-btn {
+    padding: 4px 10px; border-radius: 5px;
+    border: 1px solid rgba(255,255,255,.25);
+    background: transparent; color: rgba(255,255,255,.8);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+    outline: none; white-space: nowrap;
+  }
+  .toggle-btn:hover  { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.45); }
+  .toggle-btn.active { background: var(--primary-light); color: #fff; border-color: var(--primary-light); }
+  .toggle-btn.select-all { font-size: 11px; padding: 4px 8px; }
+  /* ── Main Layout ── */
+  .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 210px; background: var(--sidebar-bg); color: var(--text);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    border-right: 1px solid var(--border); overflow-y: auto; overflow-x: hidden;
+  }
+  .sidebar-section { padding: 12px 10px 10px 10px; border-bottom: 1px solid var(--border); }
+  .sidebar-section-title {
+    font-size: 10px; font-weight: 700; color: var(--primary-dark);
+    letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; padding-left: 2px;
+  }
+  /* Month trigger */
+  .month-trigger-btn {
+    width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(111,101,144,.18);
+    background: var(--sidebar-btn); color: var(--text); font-size: 12px; font-weight: 600;
+    cursor: pointer; text-align: center; transition: background .15s; outline: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .month-trigger-btn:hover { background: var(--sidebar-active); color: #fff; }
+  .month-trigger-btn.has-selection { background: var(--primary-dark); color: #fff; border-color: var(--primary-muted); }
+  .month-trigger-btn .arrow { font-size: 10px; transition: transform .2s; }
+  .month-trigger-btn.open .arrow { transform: rotate(180deg); }
+  /* Month popup overlay */
+  .month-popup-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: transparent; }
+  .month-popup-overlay.visible { display: block; }
+  .month-popup {
+    position: fixed; z-index: 101; background: linear-gradient(160deg, #f4f1f8, #efeaf6);
+    border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 8px 32px rgba(70,60,100,.14);
+    padding: 12px; width: 220px; display: none;
+  }
+  .month-popup.visible { display: block; }
+  .month-popup-title {
+    font-size: 10px; font-weight: 700; color: var(--primary-dark);
+    letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .month-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .kumi-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .sidebar-btn {
+    padding: 6px 4px; border-radius: 5px; border: 1px solid rgba(111,101,144,.18);
+    background: var(--sidebar-btn); color: var(--text); font-size: 11px; font-weight: 500;
+    cursor: pointer; text-align: center; transition: background .15s, color .15s; outline: none;
+  }
+  .sidebar-btn:hover { background: var(--sidebar-active); color: #fff; }
+  .sidebar-btn.active { background: var(--primary-dark); color: #fff; border-color: var(--primary-muted); }
+  .sidebar-btn.select-all-month { grid-column: 1/-1; background: #ece7f5; color: var(--text); }
+  .sidebar-btn.select-all-month.active { background: var(--primary-dark); color: #fff; }
+  .sidebar-btn.kumi-full { grid-column: 1/-1; }
+  .sidebar-bottom { margin-top: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .back-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: #ece8f6; border: 1px solid #c8c0dc;
+    color: #3a3350; font-size: 12px; font-weight: 600;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer;
+    transition: background .15s; text-decoration: none;
+  }
+  .back-btn:hover { background: #d6d0e5; color: #fff; }
+  .clear-btn {
+    background: var(--primary-dark); color: #fff; border: none;
+    border-radius: 20px; font-size: 12px; font-weight: 700;
+    padding: 8px 14px; cursor: pointer; transition: background .15s;
+  }
+  .clear-btn:hover { background: #665f87; }
+  /* ── Content ── */
+  .content {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 10px 12px; gap: 10px;
+    overflow-y: auto; min-width: 0; min-height: 0;
+  }
+  /* ── Chart Grid ── */
+  .chart-grid-6 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex-shrink: 0; }
+  .chart-card {
+    background: var(--surface); border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(30,49,43,.08);
+    border: 1px solid var(--border); overflow: hidden;
+  }
+  .chart-header {
+    background: var(--primary); color: #fff;
+    font-size: 12px; font-weight: 700; padding: 6px 14px;
+    text-align: center; letter-spacing: .3px;
+  }
+  .chart-body { padding: 6px; }
+  .bar-chart-wrap { width: 100%; overflow-x: auto; }
+  svg.bar-chart { display: block; }
+  /* ── Table ── */
+  .table-card {
+    background: var(--surface); border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(30,49,43,.08);
+    border: 1px solid var(--border); overflow: hidden; flex-shrink: 0;
+  }
+  .table-scroll-wrap {
+    width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; scrollbar-color: #b4a6cf #efeaf8;
+  }
+  .table-scroll-wrap::-webkit-scrollbar { height: 5px; }
+  .table-scroll-wrap::-webkit-scrollbar-track { background: #eef5ef; border-radius: 3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb { background: #a590c1; border-radius: 3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+  .data-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 11px; }
+  .data-table thead tr { background: var(--primary); color: #fff; }
+  .data-table thead th {
+    padding: 7px 8px; font-weight: 600; text-align: center;
+    border-right: 1px solid rgba(255,255,255,.15); white-space: nowrap; font-size: 11px;
+  }
+  .data-table tbody tr:nth-child(even) { background: var(--table-alt); }
+  .data-table tbody tr:hover { background: #eee8f6; }
+  .data-table tbody td {
+    padding: 5px 8px; border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap;
+  }
+  .data-table tbody td.td-left { text-align: left; max-width: 200px; white-space: normal; }
+  .data-table tfoot tr { background: var(--primary-dark); color: #fff; font-weight: 700; }
+  .data-table tfoot td { padding: 6px 8px; text-align: center; }
+  .table-loading { text-align: center; padding: 16px; color: var(--text-light); font-size: 12px; }
+  /* ── Badges ── */
+  .badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+  .badge-Cost        { background: #ede6f6; color: #6c5f8c; }
+  .badge-Safety      { background: #f4f4e9; color: #7a6a3f; }
+  .badge-HRD         { background: #e6f5f0; color: #1a6655; }
+  .badge-Environment { background: #eaf5e8; color: #2e7d52; }
+  .badge-Quality     { background: #e6eff8; color: #1a4f82; }
+  .badge-Production  { background: #f8f5ea; color: #7a5a1a; }
+  .shift-white  { color: #1A6B3A; font-weight: 700; font-size: 11px; }
+  .shift-yellow { color: #8A6A1A; font-weight: 700; font-size: 11px; }
+  /* ── Tooltip ── */
+  .tooltip {
+    position: fixed; z-index: 999; background: #5b4f77; color: #fff;
+    padding: 5px 10px; border-radius: 6px; font-size: 11px;
+    pointer-events: none; display: none; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  }
+</style>
+<script>
+  window.APP = window.APP || {};
+  window.APP.getQueryParam = function(name) {
+    try { return new URL(window.location.href).searchParams.get(name); } catch (e) { return null; }
+  };
+  window.APP.safeNavigate = function(target) {
+    if (!target) return;
+    try { window.location.href = target; } catch (e) {}
+  };
+  window.APP.isValidBaseUrl = function(url) {
+    return typeof url === 'string' && url.trim().length > 0 && !url.trim().startsWith('<');
+  };
+  window.APP.safeDecodeBase64 = function(value) {
+    try { return decodeURIComponent(atob(value)); } catch (e) { return null; }
+  };
+  window.APP.safeEncodeBase64 = function(value) {
+    try { return btoa(value); } catch (e) { return null; }
+  };
+  window.APP.tryParseJson = function(value) {
+    try { return JSON.parse(value); } catch (e) { return null; }
+  };
+  window.APP.restoreUserFromUrl = function() {
+    var uParam = window.APP.getQueryParam('u');
+    if (!uParam) return;
+    var decoded = window.APP.safeDecodeBase64(uParam) || uParam;
+    try {
+      var user = JSON.parse(decoded);
+      if (user && user.Username) {
+        localStorage.setItem('glboard_user', JSON.stringify(user));
+      }
+    } catch (e) {}
+  };
+  window.APP.initAppState = function() {
+    var urlBase = window.APP.getQueryParam('baseUrl');
+    if (window.APP.isValidBaseUrl(urlBase)) {
+      window.BASE_URL = urlBase.trim();
+      try { localStorage.setItem('glboard_baseUrl', window.BASE_URL); } catch (e) {}
+    } else {
+      window.BASE_URL = '';
+      try {
+        var stored = localStorage.getItem('glboard_baseUrl');
+        if (window.APP.isValidBaseUrl(stored)) window.BASE_URL = stored.trim();
+      } catch (e) {}
+    }
+    window.APP.restoreUserFromUrl();
+    return window.BASE_URL;
+  };
+  window.APP.buildPageHref = function(page) {
+    page = String(page || '').replace(/\.html$/i, '').toLowerCase();
+    var routes = {
+      login: 'login', menu: 'menu', form: 'form', history: 'history', safety: 'safety', environment: 'Enviroment', eviroment: 'Enviroment', quality: 'Quality', cost: 'cost', hrd: 'hrd', production: 'Wproduction', wproduction: 'Wproduction', dashboard: 'dashboard'
+    };
+    return (routes[page] || page) + '.html';
+  };
+  window.APP.appendUserParam = function(href) {
+    try {
+      var user = window.APP.tryParseJson(localStorage.getItem('glboard_user') || 'null');
+      if (user && user.Username) {
+        var u = window.APP.safeEncodeBase64(JSON.stringify(user));
+        if (u) return href + (href.indexOf('?') >= 0 ? '&' : '?') + 'u=' + encodeURIComponent(u);
+      }
+    } catch (e) {}
+    return href;
+  };
+</script>
+</head>
+<body>
+<div class="tooltip" id="tooltip"></div>
+<div class="month-popup-overlay" id="monthOverlay" onclick="closeMonthPopup()"></div>
+<div class="month-popup" id="monthPopup">
+  <div class="month-popup-title">Month Name</div>
+  <div class="month-grid">
+    <button class="sidebar-btn select-all-month active" onclick="toggleMonth('all')">Select all</button>
+    <button class="sidebar-btn" id="m-Jan" onclick="toggleMonth('Jan')">Jan</button>
+    <button class="sidebar-btn" id="m-Feb" onclick="toggleMonth('Feb')">Feb</button>
+    <button class="sidebar-btn" id="m-Mar" onclick="toggleMonth('Mar')">Mar</button>
+    <button class="sidebar-btn" id="m-Apr" onclick="toggleMonth('Apr')">Apr</button>
+    <button class="sidebar-btn" id="m-May" onclick="toggleMonth('May')">May</button>
+    <button class="sidebar-btn" id="m-Jun" onclick="toggleMonth('Jun')">Jun</button>
+    <button class="sidebar-btn" id="m-Jul" onclick="toggleMonth('Jul')">Jul</button>
+    <button class="sidebar-btn" id="m-Aug" onclick="toggleMonth('Aug')">Aug</button>
+    <button class="sidebar-btn" id="m-Sep" onclick="toggleMonth('Sep')">Sep</button>
+    <button class="sidebar-btn" id="m-Oct" onclick="toggleMonth('Oct')">Oct</button>
+    <button class="sidebar-btn" id="m-Nov" onclick="toggleMonth('Nov')">Nov</button>
+    <button class="sidebar-btn" id="m-Dec" onclick="toggleMonth('Dec')">Dec</button>
+  </div>
+</div>
+
+<div class="top-header">
+  <div class="header-year-panel">
+    <span class="label">Year</span>
+    <button class="toggle-btn select-all active" id="yr-all" onclick="toggleYear('all')">Select all</button>
+    <div id="yearButtonsContainer"></div>
+  </div>
+  <div class="header-title">(W) Cost Real-Time Monitoring</div>
+  <div class="header-shift-panel">
+    <span class="label">Shift</span>
+    <button class="toggle-btn select-all active" id="sh-all" onclick="toggleShift('all')">Select all</button>
+    <button class="toggle-btn" id="sh-w" onclick="toggleShift('W')">W</button>
+    <button class="toggle-btn" id="sh-y" onclick="toggleShift('Y')">Y</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Month Name</div>
+      <button class="month-trigger-btn" id="monthTriggerBtn" onclick="toggleMonthPopup(event)">
+        <span id="monthBtnLabel">Select all</span>
+        <span class="arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Kumi</div>
+      <div class="kumi-grid">
+        <button class="sidebar-btn kumi-full select-all-month active" onclick="toggleKumi('all')">Select all</button>
+        <button class="sidebar-btn" id="k-CAB3" onclick="toggleKumi('CAB3')">CAB3 &amp; Fr. Floor</button>
+        <button class="sidebar-btn" id="k-RrFloor" onclick="toggleKumi('RrFloor')">Rr. Floor</button>
+        <button class="sidebar-btn" id="k-SideMenber" onclick="toggleKumi('SideMenber')">Side Menber</button>
+        <button class="sidebar-btn" id="k-DeckSlat" onclick="toggleKumi('DeckSlat')">Deck &amp; Slat</button>
+        <button class="sidebar-btn" id="k-Shell3" onclick="toggleKumi('Shell3')">Shell3</button>
+        <button class="sidebar-btn" id="k-Shell3RH" onclick="toggleKumi('Shell3RH')">Shell3 Roller Hem</button>
+        <button class="sidebar-btn" id="k-Logistics" onclick="toggleKumi('Logistics')">Logistics</button>
+        <button class="sidebar-btn" id="k-Inspection" onclick="toggleKumi('Inspection')">Inspection</button>
+      </div>
+    </div>
+    <div class="sidebar-bottom">
+      <a href="#" class="back-btn" onclick="goToForm(event)">กรอกข้อมูล</a>
+      <a href="#" class="back-btn" onclick="goToHistory(event)">ประวัติ</a>
+      <a href="menu.html" class="back-btn" onclick="goToMenu(event)">⬅ BACK TO MENU</a>
+      <button class="clear-btn" onclick="clearAllSelections()">Clear All Select</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="chart-grid-6">
+      <div class="chart-card" onclick="focusCard('CostBU')">
+        <div class="chart-header">Cost B/U</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-CostBU" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+      <div class="chart-card" onclick="focusCard('DirectCost')">
+        <div class="chart-header">Direct Cost</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-DirectCost" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+      <div class="chart-card" onclick="focusCard('IndirectCost')">
+        <div class="chart-header">Indirect Cost</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-IndirectCost" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+      <div class="chart-card" onclick="focusCard('FixCost')">
+        <div class="chart-header">Fix Cost</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-FixCost" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+      <div class="chart-card" onclick="focusCard('AvalibleCost')">
+        <div class="chart-header">Avalible Cost</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-AvalibleCost" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+      <div class="chart-card" onclick="focusCard('UnfixTime')">
+        <div class="chart-header">Unfix Time</div>
+        <div class="chart-body"><div class="bar-chart-wrap">
+          <svg class="bar-chart" id="chart-UnfixTime" width="100%" height="160" viewBox="0 0 400 160"></svg>
+        </div></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;color:#4a0707;font-size:12px;font-weight:700" id="currentFilterText">Showing all cost data</div>
+    <div class="table-card">
+      <div class="table-scroll-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>KPI Type</th><th>Kumi</th><th>Main KPI</th>
+              <th>Sub KPI</th><th>Process KPI</th><th>ช่วงเวลา</th>
+              <th>Shift</th><th>Mins</th><th>Problem</th>
+              <th>KPI Monitor</th><th>Target</th><th>Actual</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="13" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="12">Total</td>
+              <td id="totalActual">-</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedYears=['all'], selectedShifts=['all'], selectedMonths=['all'], selectedKumis=['all'];
+let BASE_URL = "<?!= baseUrl ?>";
+if (!BASE_URL || BASE_URL.trim().length === 0 || BASE_URL.trim().startsWith('<')) BASE_URL = '';
+let allApiRecords=[], debounceTimer=null;
+
+function parseCsvLine(line){
+  const values=[]; let cur=''; let inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){
+      if(inQuotes && line[i+1]==='"'){cur+='"'; i++;}
+      else{inQuotes=!inQuotes;}
+    }else if(ch===',' && !inQuotes){values.push(cur); cur='';}
+    else{cur+=ch;}
+  }
+  values.push(cur);
+  return values.map(v=>v.trim());
+}
+
+function parseCsv(text){
+  const rows=[];
+  const lines=text.split(/\r?\n/).map(l=>l.trimEnd());
+  if(!lines.length || !lines[0].trim()) return rows;
+  const headers=parseCsvLine(lines[0]);
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const values=parseCsvLine(lines[i]);
+    const obj={};
+    headers.forEach((header,idx)=>{obj[header]=values[idx]||'';});
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function normalizeApiRecord(r){
+  return {
+    kpi: (r.kpi || r.KPI || r.Kpi || '').trim(),
+    record_date: (r.record_date || r.Problem_Date || r.record_date || '').trim(),
+    problem_date: r.Problem_Date || r.record_date || '',
+    kumi: r.kumi || r.Kumi || r.KUMI || '',
+    process_kpi: r.process_kpi || r.Process_PKI || r.Process_KPI || '',
+    main_kpi: r.main_kpi || r.Main_KPI || r.Main_Kpi || '',
+    sub_kpi: r.sub_kpi || r.Sub_KPI || r.Sub_Kpi || '',
+    problem_detail: r.problem_detail || r.Detail || '',
+    problem_time: r.problem_time || r.Problem_Time || '',
+    shift: r.shift || r.Problem_Shift || '',
+    problem_hour: r.problem_hour || r.Problem_Hour || '',
+    target: r.target != null ? r.target : (r.Problem_Target != null ? r.Problem_Target : (r.Problem_QTY != null ? r.Problem_QTY : '')),
+    actual: r.actual != null ? r.actual : (r.Problem_Actual != null ? r.Problem_Actual : ''),
+    unit_problem: r.unit_problem || r.Unit_Problem || r.QTY_Unit || ''
+  };
+}
+
+async function fetchMonitoringData(params){
+  params = params || {};
+  // Try server-side API first (Apps Script or local Python API)
+  if (typeof BASE_URL === 'string' && BASE_URL) {
+    try {
+      const resp = await fetch(BASE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getMonitoringData', args: [params] })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && Array.isArray(json.records)) return { records: json.records.map(normalizeApiRecord), pages: json.pages || 1 };
+      }
+    } catch (e) {
+      console.warn('Apps Script unavailable, falling back to local API:', e.message);
+    }
+  }
+
+  if (window.location.host) {
+    const allRec = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const query = new URLSearchParams(Object.assign({ page, per_page: 200, sort_col: params.sort_col || 'record_date', sort_dir: params.sort_dir || 'desc' }, params));
+      const url = '/api/records?' + query.toString();
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const json = await resp.json();
+      allRec.push(...(json.records || []));
+      totalPages = json.pages || 1;
+      page += 1;
+    } while (page <= totalPages);
+    return { records: allRec.map(normalizeApiRecord), pages: totalPages };
+  }
+
+  // CSV fallback for file:// use only
+  const sheetUrl='https://docs.google.com/spreadsheets/d/1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E/export?format=csv&gid=2045278866';
+  const response=await fetch(sheetUrl,{cache:'no-store'});
+  if(!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้');
+  const csv=await response.text();
+  const rows=parseCsv(csv);
+  const targetKpi='cost';
+  const records=rows.filter(r=>(r.KPI||'').trim().toLowerCase()===targetKpi).map(r=>({
+    kpi:(r.KPI||'').trim(),
+    record_date:r.record_date || r.Problem_Date || '',
+    problem_date:r.Problem_Date || r.record_date || '',
+    kumi:r.Kumi || '',
+    process_kpi:r.Process_KPI || '',
+    main_kpi:r.Main_KPI || '',
+    sub_kpi:r.Sub_KPI || '',
+    problem_detail:r.Detail || '',
+    problem_time:r.Problem_Time || '',
+    shift:r.Problem_Shift || '',
+    problem_hour:r.Problem_Hour || '',
+    target:r.Problem_Target || r.Problem_QTY || '',
+    actual:r.Problem_Actual || '',
+    unit_problem:r.Unit_Problem || r.QTY_Unit || ''
+  }));
+  return {records,pages:1};
+}
+
+function toggleMonthPopup(e){
+  e.stopPropagation();
+  const btn=document.getElementById('monthTriggerBtn'),popup=document.getElementById('monthPopup'),overlay=document.getElementById('monthOverlay');
+  if(popup.classList.contains('visible')){closeMonthPopup();return;}
+  const rect=btn.getBoundingClientRect();
+  popup.style.left=rect.left+'px'; popup.style.top=(rect.bottom+4)+'px';
+  popup.classList.add('visible'); overlay.classList.add('visible'); btn.classList.add('open');
+}
+function closeMonthPopup(){
+  document.getElementById('monthPopup').classList.remove('visible');
+  document.getElementById('monthOverlay').classList.remove('visible');
+  document.getElementById('monthTriggerBtn').classList.remove('open');
+}
+function updateMonthBtnLabel(){
+  const btn=document.getElementById('monthTriggerBtn'),lbl=document.getElementById('monthBtnLabel');
+  if(selectedMonths.includes('all')||selectedMonths.length===0){lbl.textContent='Select all';btn.classList.remove('has-selection');}
+  else if(selectedMonths.length===1){lbl.textContent=selectedMonths[0];btn.classList.add('has-selection');}
+  else{lbl.textContent=selectedMonths.length+' months';btn.classList.add('has-selection');}
+}
+
+async function loadAllRecords(){
+  document.getElementById('tableBody').innerHTML='<tr><td colspan="13" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>';
+  let allRec=[],page=1,totalPages=1;
+  try{
+    do{
+      const params={page,per_page:200,sort_col:'record_date',sort_dir:'desc'};
+      const data=await fetchMonitoringData(params);
+      allRec=allRec.concat(data.records||[]);
+      totalPages=data.pages||1; page++;
+    }while(page<=totalPages);
+    allApiRecords=allRec;
+    applyFiltersAndRender();
+  }catch(err){
+    document.getElementById('tableBody').innerHTML=`<tr><td colspan="13" class="table-loading">❌ โหลดข้อมูลล้มเหลว: ${err.message}</td></tr>`;
+    initEmptyCharts();
+  }
+}
+
+var selectedCardFilter = null;
+
+function focusCard(cardKey){
+  var mapping = {
+    CostBU: {field:'main_kpi', value:'Cost B/U'},
+    DirectCost: {field:'sub_kpi', value:'Direct Cost'},
+    IndirectCost: {field:'sub_kpi', value:'Indirect Cost'},
+    FixCost: {field:'process_kpi', value:'Fix Cost'},
+    AvalibleCost: {field:'process_kpi', value:'Avalible Cost'},
+    UnfixTime: {field:'process_kpi', value:'Unfix'}
+  };
+  var item = mapping[cardKey] || null;
+  selectedCardFilter = item ? item : null;
+  document.querySelectorAll('.chart-card').forEach(function(card){card.classList.remove('active');});
+  if (item) {
+    var id = 'chart-' + cardKey;
+    var el = document.getElementById(id);
+    if (el && el.closest('.chart-card')) el.closest('.chart-card').classList.add('active');
+  }
+  document.getElementById('currentFilterText').textContent = item ? 'Filtered by: ' + item.value : 'Showing all cost data';
+  debouncedRender();
+}
+
+function applyFiltersAndRender(){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const kumiKeyMap={CAB3:'CAB3',RrFloor:'Rr.',SideMenber:'Side',DeckSlat:'Deck',Shell3:'Shell3',Shell3RH:'Roller',Logistics:'Logistic',Inspection:'Inspect'};
+  const filtered=allApiRecords.filter(r=>{
+    if((r.kpi||'').trim().toLowerCase()!=='cost') return false;
+    if (selectedCardFilter) {
+      const actual = String(r[selectedCardFilter.field] || '').toLowerCase();
+      if (!actual.includes(String(selectedCardFilter.value || '').toLowerCase())) return false;
+    }
+    const dp=(r.record_date||'').split('-');
+    const ry=dp[0]||'', rm=MS[parseInt(dp[1]||'0',10)-1]||'';
+    if(!selectedYears.includes('all')&&!selectedYears.includes(ry)) return false;
+    if(!selectedMonths.includes('all')&&!selectedMonths.includes(rm)) return false;
+    if(!selectedShifts.includes('all')){
+      const sv=(r.shift||'').toLowerCase();
+      if(!selectedShifts.some(s=>(s==='W'&&sv.includes('white'))||(s==='Y'&&sv.includes('yellow')))) return false;
+    }
+    if(!selectedKumis.includes('all')){
+      if(!selectedKumis.some(k=>r.kumi&&r.kumi.toLowerCase().includes((kumiKeyMap[k]||k).toLowerCase()))) return false;
+    }
+    return true;
+  });
+  const rows=filtered.map(apiToRow);
+  renderTable(rows);
+  buildAllCharts(filtered, rows);
+}
+
+function apiToRow(r){
+  let timeRange=r.problem_time||'-';
+  if(r.problem_time&&r.problem_time!=='-'&&r.problem_time.includes(':')){
+    const[h,m]=r.problem_time.split(':').map(Number);
+    timeRange=`${r.problem_time} - ${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  return{
+    record_date:r.record_date||'',kpi:r.kpi||'',kumi:r.kumi||'',
+    process_kpi:r.process_kpi||'',main_kpi:r.main_kpi||'',sub_kpi:r.sub_kpi||'',
+    time_range:timeRange,shift:r.shift||'',mins:r.problem_hour||'0',
+    problem:r.problem_detail||'',kpi_monitor:r.shift||'',
+    target:r.target||'',actual:r.actual||'',unit:r.unit_problem||''
+  };
+}
+
+function getXMode(){
+  return (!selectedMonths.includes('all') && selectedMonths.length===1) ? 'date' : 'month';
+}
+
+function buildChartData(apiRecords, fieldKey, matchVal, xMode){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const grouped=new Map();
+  apiRecords.forEach(r=>{
+    const fv=(r[fieldKey]||'').toLowerCase();
+    if(!fv.includes(matchVal.toLowerCase())) return;
+    const date=r.record_date||''; if(!date) return;
+    const parts=date.split('-');
+    let xLabel, sortKey;
+    if(xMode==='date'){xLabel=`${parts[1]||'?'}-${parts[2]||'?'}`;sortKey=date;}
+    else{const mi=parseInt(parts[1]||'0',10)-1;const yr2=(parts[0]||'').slice(2);xLabel=(MS[mi]||'?')+'-'+yr2;sortKey=(parts[0]||'0000')+'-'+(parts[1]||'00');}
+    if(!grouped.has(xLabel)){grouped.set(xLabel,{actuals:[],targets:[],sortKey});}
+    const g=grouped.get(xLabel);
+    const av=parseFloat(r.actual), tv=parseFloat(r.target);
+    if(!isNaN(av)) g.actuals.push(av);
+    if(!isNaN(tv)) g.targets.push(tv);
+  });
+  return [...grouped.entries()]
+    .sort((a,b)=>a[1].sortKey.localeCompare(b[1].sortKey))
+    .map(([label,v])=>({
+      label,
+      actual: v.actuals.length ? v.actuals[v.actuals.length-1] : 0,
+      target: v.targets.length ? v.targets[0] : null
+    }));
+}
+
+function buildAllCharts(apiRecords, rows){
+  const xMode=getXMode();
+  renderActualTargetChart('chart-CostBU',    buildChartData(apiRecords,'main_kpi','Cost B/U',xMode),    400, 160);
+  renderActualTargetChart('chart-DirectCost', buildChartData(apiRecords,'sub_kpi','Direct Cost',xMode),  400, 160);
+  renderActualTargetChart('chart-IndirectCost',buildChartData(apiRecords,'sub_kpi','Indirect Cost',xMode),400, 160);
+  renderActualTargetChart('chart-FixCost',    buildChartData(apiRecords,'process_kpi','Fix Cost',xMode), 400, 160);
+  renderActualTargetChart('chart-AvalibleCost',buildChartData(apiRecords,'process_kpi','Avalible Cost',xMode),400,160);
+  renderActualTargetChart('chart-UnfixTime',  buildChartData(apiRecords,'process_kpi','Unfix',xMode),    400, 160);
+}
+
+function renderActualTargetChart(svgId, data, W, H){
+  const svg=document.getElementById(svgId);
+  if(!svg) return;
+  const pL=34, pR=12, pT=18, pB=44, cW=W-pL-pR, cH=H-pT-pB;
+  const BAR_OK='#8b79a1', BAR_LOW='#c2a0be', TARGET_CLR='#8c82a4';
+
+  if(!data||data.length===0){
+    svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="11" fill="#736992">ไม่มีข้อมูล</text>`;
+    return;
+  }
+  const targetEntry=data.find(d=>d.target!==null&&!isNaN(d.target));
+  const targetVal=targetEntry?targetEntry.target:null;
+  const allVals=data.map(d=>d.actual).concat(targetVal!==null?[targetVal]:[]);
+  const maxVal=Math.max(...allVals.filter(v=>!isNaN(v)&&v>0), 1)*1.2;
+  const n=data.length, slotW=cW/Math.max(n,1), bW=Math.max(4,slotW*0.55);
+  let h='';
+
+  for(let i=0;i<=4;i++){
+    const val=(maxVal/4)*i, y=pT+cH-(val/maxVal)*cH;
+    h+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="#e3dff0" stroke-width="1"/>`;
+    h+=`<text x="${pL-4}" y="${y+4}" text-anchor="end" font-size="8" fill="#736992">${fmtV(val)}</text>`;
+  }
+h+=`<line x1="${pL}" y1="${pT+cH}" x2="${W-pR}" y2="${pT+cH}" stroke="#8c82a4" stroke-width="1.5"/>`;
+    h+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+cH}" stroke="#8c82a4" stroke-width="1.5"/>`;
+
+  data.forEach((d,i)=>{
+    const cx=pL+i*slotW+slotW/2, bx=cx-bW/2;
+    const aVal=isNaN(d.actual)?0:d.actual;
+    const bh=aVal<=0?1:(aVal/maxVal)*cH, by=pT+cH-bh;
+    const fill=(targetVal!==null && aVal>=targetVal)?BAR_OK:BAR_LOW;
+    h+=`<rect x="${bx}" y="${by}" width="${bW}" height="${bh}" rx="2" fill="${fill}"
+      onmouseenter="showTip(event,'${escJ(d.label)} Actual: ${aVal}')" onmouseleave="hideTip()"/>`;
+    if(aVal>0) h+=`<text x="${cx}" y="${by-3}" text-anchor="middle" font-size="8" fill="#63577e" font-weight="700">${aVal}</text>`;
+    h+=`<text x="${cx}" y="${H-pB+13}" text-anchor="middle" font-size="8" fill="#736992"
+      transform="rotate(-35,${cx},${H-pB+13})">${escJ(d.label)}</text>`;
+  });
+
+  if(targetVal!==null){
+    const ty=pT+cH-(targetVal/maxVal)*cH;
+    h+=`<line x1="${pL}" y1="${ty}" x2="${W-pR}" y2="${ty}" stroke="${TARGET_CLR}" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+    h+=`<text x="${W-pR-2}" y="${ty-3}" text-anchor="end" font-size="8" fill="${TARGET_CLR}" font-weight="700">Target ${targetVal}</text>`;
+  }
+
+  const lY=H-4;
+  h+=`<rect x="${pL}" y="${lY-8}" width="10" height="6" rx="1" fill="${BAR_OK}"/>
+    <text x="${pL+13}" y="${lY}" font-size="8" fill="#63577e">≥ Target</text>`;
+  h+=`<rect x="${pL+60}" y="${lY-8}" width="10" height="6" rx="1" fill="${BAR_LOW}"/>
+    <text x="${pL+73}" y="${lY}" font-size="8" fill="#63577e">&lt; Target</text>`;
+  if(targetVal!==null){
+    h+=`<line x1="${pL+125}" y1="${lY-4}" x2="${pL+137}" y2="${lY-4}" stroke="${TARGET_CLR}" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="${pL+140}" y="${lY}" font-size="8" fill="#884040">Target</text>`;
+  }
+  svg.innerHTML=h;
+}
+
+function fmtV(v){
+  if(v===0) return '0';
+  if(v>=1000) return (v/1000).toFixed(1)+'k';
+  if(Number.isInteger(v)) return v;
+  return parseFloat(v.toFixed(1));
+}
+
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escJ(s){return String(s||'').replace(/'/g,"\\'");}
+function kpiBadge(kpi){const types=['Cost','Safety','HRD','Environment','Quality','Production'];const cls=types.includes(kpi)?`badge-${kpi}`:'badge-Production';return`<span class="badge ${cls}">● ${esc(kpi)}</span>`;}
+function shiftSpan(s){return`<span class="${s&&s.toLowerCase().includes('white')?'shift-white':'shift-yellow'}">${esc(s)}</span>`;}
+function actualColor(a,t){const av=parseFloat(a),tv=parseFloat(t);if(isNaN(av)||isNaN(tv)||tv===0)return'inherit';return av>=tv?'#6f5f8f':'#b68ab2';}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="table-loading">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>';
+    document.getElementById('totalActual').textContent='0.00';
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td>${esc(r.record_date)}</td>
+    <td>${kpiBadge(r.kpi)}</td>
+    <td style="font-weight:600">${esc(r.kumi)}</td>
+    <td>${esc(r.main_kpi)}</td>
+    <td style="color:var(--text-light);font-size:10px">${esc(r.sub_kpi)}</td>
+    <td style="color:var(--text-light)" title="${esc(r.process_kpi)}">${esc(r.process_kpi)}</td>
+    <td style="font-size:10px;font-family:monospace">${esc(r.time_range)}</td>
+    <td>${shiftSpan(r.shift)}</td>
+    <td>${esc(r.mins)}</td>
+    <td class="td-left">${esc(r.problem)}</td>
+    <td>${esc(r.kpi_monitor)}</td>
+    <td>${esc(r.target)}${r.unit?' '+esc(r.unit):''}</td>
+    <td style="color:${actualColor(r.actual,r.target)};font-weight:700">${esc(r.actual)}${r.unit?' '+esc(r.unit):''}</td>
+  </tr>`).join('');
+  const totalActual = rows.reduce((s, r) => s + (parseFloat(r.actual) || 0), 0);
+  const unitRow = rows.find(r => r.unit);
+  document.getElementById('totalActual').textContent = totalActual.toFixed(2) + (unitRow && unitRow.unit ? ' ' + unitRow.unit : '');
+}
+
+function showTip(e,text){const t=document.getElementById('tooltip');t.textContent=text;t.style.display='block';t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-28)+'px';}
+function hideTip(){document.getElementById('tooltip').style.display='none';}
+
+// Generate year buttons dynamically
+(function() {
+  var container = document.getElementById('yearButtonsContainer');
+  if (!container) return;
+  var currentYear = new Date().getFullYear();
+  var startYear = 2024;
+  var endYear = currentYear + 1;
+  for (var y = startYear; y <= endYear; y++) {
+    var btn = document.createElement('button');
+    btn.className = 'toggle-btn';
+    btn.id = 'yr-' + y;
+    btn.textContent = y.toString();
+    btn.onclick = function(year) { return function() { toggleYear(year.toString()); }; }(y);
+    container.appendChild(btn);
+  }
+})();
+
+function toggleYear(yr){
+  if(yr==='all'){selectedYears=['all'];var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,false));setA('yr-all',true);}
+  else{selectedYears=selectedYears.filter(v=>v!=='all');const idx=selectedYears.indexOf(yr);idx>=0?selectedYears.splice(idx,1):selectedYears.push(yr);setA('yr-all',false);var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,selectedYears.includes(b.id.substring(3))));if(!selectedYears.length){selectedYears=['all'];setA('yr-all',true);}}
+  debouncedRender();
+}
+function toggleShift(sh){
+  if(sh==='all'){selectedShifts=['all'];setA('sh-w',false);setA('sh-y',false);setA('sh-all',true);}
+  else{selectedShifts=selectedShifts.filter(v=>v!=='all');const idx=selectedShifts.indexOf(sh);idx>=0?selectedShifts.splice(idx,1):selectedShifts.push(sh);setA('sh-all',false);['W','Y'].forEach(s=>setA('sh-'+s,selectedShifts.includes(s)));if(!selectedShifts.length){selectedShifts=['all'];setA('sh-all',true);}}
+  debouncedRender();
+}
+function toggleMonth(m){
+  const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(m==='all'){selectedMonths=['all'];ms.forEach(mn=>setA('m-'+mn,false));document.querySelector('#monthPopup .select-all-month').classList.add('active');}
+  else{selectedMonths=selectedMonths.filter(v=>v!=='all');document.querySelector('#monthPopup .select-all-month').classList.remove('active');const idx=selectedMonths.indexOf(m);idx>=0?selectedMonths.splice(idx,1):selectedMonths.push(m);ms.forEach(mn=>setA('m-'+mn,selectedMonths.includes(mn)));if(!selectedMonths.length){selectedMonths=['all'];document.querySelector('#monthPopup .select-all-month').classList.add('active');}}
+  updateMonthBtnLabel();debouncedRender();
+}
+function toggleKumi(k){
+  const ks=['CAB3','RrFloor','SideMenber','DeckSlat','Shell3','Shell3RH','Logistics','Inspection'];
+  if(k==='all'){selectedKumis=['all'];ks.forEach(ki=>setA('k-'+ki,false));document.querySelector('.kumi-grid .select-all-month')?.classList.add('active');}
+  else{selectedKumis=selectedKumis.filter(v=>v!=='all');const idx=selectedKumis.indexOf(k);idx>=0?selectedKumis.splice(idx,1):selectedKumis.push(k);ks.forEach(ki=>setA('k-'+ki,selectedKumis.includes(ki)));if(!selectedKumis.length)selectedKumis=['all'];}
+  debouncedRender();
+}
+function clearAllSelections(){
+  selectedYears=['all'];selectedShifts=['all'];selectedMonths=['all'];selectedKumis=['all'];
+  ['yr-all','sh-all'].forEach(id=>setA(id,true));
+  ['yr-2024','yr-2025','yr-2026','sh-w','sh-y'].forEach(id=>setA(id,false));
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.select-all-month').forEach(b=>b.classList.add('active'));
+  updateMonthBtnLabel();debouncedRender();
+}
+function setA(id,on){const el=document.getElementById(id);if(el)on?el.classList.add('active'):el.classList.remove('active');}
+function debouncedRender(){clearTimeout(debounceTimer);debounceTimer=setTimeout(applyFiltersAndRender,80);}
+function initEmptyCharts(){
+  ['chart-CostBU','chart-DirectCost','chart-IndirectCost','chart-FixCost','chart-AvalibleCost','chart-UnfixTime']
+    .forEach(id=>renderActualTargetChart(id,[], 400, 160));
+}
+initEmptyCharts();
+loadAllRecords();
+
+  function startRealtime(){ if(typeof(EventSource)==='undefined') return; try{ var es=new EventSource('/api/stream'); es.onmessage=function(ev){ try{ var payload=JSON.parse(ev.data); if(payload && payload.records){ allApiRecords=payload.records; applyFiltersAndRender(); } }catch(err){console.error('stream parse',err);} }; es.onerror=function(){ setTimeout(startRealtime,5000); }; }catch(e){console.error('SSE failed',e);} }
+  startRealtime();
+</script>
+<script>
+  (function(){
+    const BASE_URL = APP.initAppState();
+    window.goToMenu = function(event){
+      if (event) event.preventDefault();
+      APP.safeNavigate(APP.buildPageHref('menu'));
+    };
+    window.goToForm = function(event){
+      if (event) event.preventDefault();
+      APP.safeNavigate(APP.buildPageHref('form'));
+    };
+    window.goToHistory = function(event){
+      if (event) event.preventDefault();
+      APP.safeNavigate(APP.buildPageHref('history'));
+    };
+    var sidebarA = Array.from(document.querySelectorAll('.sidebar-bottom a.back-btn')).find(function(a){ return /BACK TO MENU/i.test(a.textContent); });
+    if(sidebarA){ sidebarA.setAttribute('target','_top'); sidebarA.onclick = function(e){ e.preventDefault(); window.goToMenu(e); }; }
+  })();
+</script>
+</body>
+</html>

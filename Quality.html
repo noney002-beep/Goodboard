@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(W) Quality Real-Time Monitoring</title>
+<style>
+  :root {
+    --mustard:       #8f6f3d;
+    --mustard-deep:  #6d5430;
+    --mustard-darker:#5c4629;
+    --mustard-mid:   #ad9161;
+    --mustard-warm:  #c5a87c;
+    --mustard-soft:  #e4d9c0;
+    --mustard-pale:  #f4ebda;
+    --mustard-ice:   #fbf2e5;
+    --mustard-cream: #fcf6ef;
+    --mustard-grid:  #d3c5ae;
+
+    --sidebar-bg:    #f4ede0;
+    --sidebar-btn:   #faf4ec;
+    --bg:            #f8f6ef;
+    --white:         #ffffff;
+    --text:          #2f2a23;
+    --text-light:    #6f6658;
+    --border:        #d7c9b4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── header ── */
+  .top-header {
+    display: flex; align-items: center;
+    background: linear-gradient(135deg, #bd9d74 0%, #e6d4b5 45%, #fbf2ea 100%);
+    color: #3e3a34;
+    min-height: 52px; flex-shrink: 0;
+  }
+  .header-year-panel {
+    background: #f4ece2; min-width: 200px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 10px; border-right: 2px solid var(--mustard-deep); flex-shrink: 0;
+  }
+  .header-year-panel .label { font-size:11px; color:#7a6b50; font-weight:700; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+  .header-title { flex:1; text-align:center; font-size:30px; font-weight:800; letter-spacing:1px; color:var(--text); }
+  .header-shift-panel {
+    background: #f4ece2; min-width: 155px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 10px; border-left: 2px solid var(--mustard-deep); flex-shrink: 0;
+  }
+  .header-shift-panel .label { font-size:11px; color:#7a6b50; font-weight:700; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+
+  .toggle-btn {
+    padding: 4px 10px; border-radius: 6px; border: 2px solid var(--mustard-mid);
+    background: var(--sidebar-btn); color: var(--text);
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    transition: background .15s, color .15s; outline: none; white-space: nowrap;
+  }
+  .toggle-btn:hover { background: var(--mustard); color: #fff; }
+  .toggle-btn.active { background: var(--mustard-deep); color: #fff; border-color: var(--mustard-warm); }
+  .toggle-btn.select-all { background: var(--sidebar-btn); color: var(--text); font-size:11px; padding:4px 8px; }
+  .toggle-btn.select-all.active { background: var(--mustard-mid); color: #fff; }
+
+  /* ── layout ── */
+  .main-layout { display:flex; flex:1; overflow:hidden; min-height:0; }
+
+  .sidebar {
+    width:210px; background:var(--sidebar-bg); color:var(--text);
+    display:flex; flex-direction:column; flex-shrink:0;
+    border-right:2px solid var(--mustard-pale); overflow-y:auto; overflow-x:hidden;
+  }
+  .sidebar-section { padding:10px 10px 8px 10px; border-bottom:1px solid var(--mustard-grid); }
+  .sidebar-section-title { font-size:10px; font-weight:800; color:var(--mustard-deep); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+
+  .month-trigger-btn {
+    width:100%; padding:7px 10px; border-radius:7px; border:1.5px solid var(--mustard-mid);
+    background:var(--sidebar-btn); color:var(--text); font-size:11px; font-weight:700;
+    cursor:pointer; text-align:center; transition:background .15s; outline:none;
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+  }
+  .month-trigger-btn:hover { background:var(--mustard); color:#fff; }
+  .month-trigger-btn.has-selection { background:var(--mustard-deep); color:#fff; }
+  .month-trigger-btn .arrow { font-size:10px; transition:transform .2s; }
+  .month-trigger-btn.open .arrow { transform:rotate(180deg); }
+
+  .month-popup-overlay { display:none; position:fixed; inset:0; z-index:100; }
+  .month-popup-overlay.visible { display:block; }
+  .month-popup {
+    position:fixed; z-index:101; background:linear-gradient(160deg, #f8f0e4, #fbf4ed);
+    border:1.5px solid var(--mustard-pale);
+    border-radius:10px; box-shadow:0 8px 32px rgba(123,98,73,.14);
+    padding:12px; width:220px; display:none;
+  }
+  .month-popup.visible { display:block; }
+  .month-popup-title { font-size:11px; font-weight:800; color:var(--mustard-deep); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+  .month-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; }
+  .kumi-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+
+  .sidebar-btn {
+    padding:6px 4px; border-radius:6px; border:1px solid var(--mustard-mid);
+    background:var(--sidebar-btn); color:var(--text); font-size:10px; font-weight:600;
+    cursor:pointer; text-align:center; transition:background .15s, color .15s; outline:none;
+  }
+  .sidebar-btn:hover { background:var(--mustard); color:#fff; }
+  .sidebar-btn.active { background:var(--mustard-deep); color:#fff; border-color:var(--mustard-soft); }
+  .sidebar-btn.select-all-month { grid-column:1/-1; background:#e7d7b7; color:var(--text); font-size:10px; }
+  .sidebar-btn.select-all-month.active { background:var(--mustard); color:#fff; }
+  .sidebar-btn.kumi-full { grid-column:1/-1; }
+
+  .sidebar-bottom { margin-top:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+  .back-btn {
+    display:flex; align-items:center; gap:8px;
+    background:#ede1ce; border:1.5px solid #d1bca8;
+    color:var(--text); font-size:11px; font-weight:700;
+    padding:7px 10px; border-radius:7px; cursor:pointer; transition:background .15s; text-decoration:none;
+  }
+  .back-btn:hover { background:#cdbc9f; color:#fff; }
+  .clear-btn {
+    background:var(--mustard-deep); color:#fff; border:none;
+    border-radius:20px; font-size:12px; font-weight:700;
+    padding:8px 14px; cursor:pointer; transition:background .15s;
+  }
+  .clear-btn:hover { background:var(--mustard-darker); }
+
+  /* ── content ── */
+  .content {
+    flex:1; display:flex; flex-direction:column;
+    padding:8px 10px; gap:8px;
+    overflow-y:auto; min-width:0; min-height:0;
+  }
+
+  .chart-row { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; flex-shrink:0; }
+  .chart-card {
+    background:var(--mustard-cream); border-radius:10px;
+    box-shadow:0 1px 6px rgba(82,96,84,.10); overflow:hidden;
+    border:1px solid var(--mustard-pale);
+  }
+  .chart-header {
+    background:var(--mustard); color:#fff;
+    font-size:13px; font-weight:800; padding:6px 10px;
+    text-align:center; letter-spacing:.5px;
+  }
+  .chart-body { padding:6px 6px; }
+  .bar-chart-wrap { width:100%; overflow-x:auto; }
+  svg.bar-chart { display:block; }
+
+  .mini-chart-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; flex-shrink:0; }
+  .mini-card {
+    background:var(--mustard-cream); border-radius:8px;
+    box-shadow:0 1px 4px rgba(82,96,84,.09); overflow:hidden;
+    border:1px solid var(--mustard-pale);
+  }
+  .mini-header {
+    background:var(--mustard-deep); color:#fff;
+    font-size:12px; font-weight:800; padding:6px 4px; text-align:center;
+  }
+  .mini-body { padding:6px 4px 4px 4px; }
+
+  /* ── table ── */
+  .table-card {
+    background:var(--mustard-cream); border-radius:10px;
+    box-shadow:0 1px 6px rgba(82,96,84,.10); overflow:hidden; flex-shrink:0;
+    border:1px solid var(--mustard-pale);
+  }
+  .table-scroll-wrap {
+    width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin; scrollbar-color:#b29d78 var(--mustard-ice);
+  }
+  .table-scroll-wrap::-webkit-scrollbar { height:5px; }
+  .table-scroll-wrap::-webkit-scrollbar-track { background:var(--mustard-ice); border-radius:3px; }
+  .table-scroll-wrap::-webkit-scrollbar-thumb { background:#b29d78; border-radius:3px; }
+
+  .data-table { width:100%; min-width:960px; border-collapse:collapse; font-size:11px; }
+  .data-table thead tr { background:var(--mustard); color:#fff; }
+  .data-table thead th { padding:5px 8px; font-weight:700; text-align:center; border-right:1px solid var(--mustard-mid); white-space:nowrap; }
+  .data-table tbody tr:nth-child(even) { background:var(--mustard-ice); }
+  .data-table tbody tr:hover { background:#f0e5d6; }
+  .data-table tbody td { padding:4px 8px; border-right:1px solid #dde5dc; border-bottom:1px solid #dde5dc; text-align:center; white-space:nowrap; }
+  .data-table tbody td.td-problem { text-align:left; max-width:180px; white-space:normal; }
+  .data-table tfoot tr { background:var(--mustard-deep); color:#fff; font-weight:800; }
+  .data-table tfoot td { padding:5px 8px; text-align:center; font-size:11px; }
+  .table-loading { text-align:center; padding:16px; color:var(--text-light); font-size:12px; }
+
+  .badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:700; }
+  .badge-Safety      { background:#fbe9e9; color:#9c3f41; }
+  .badge-Environment { background:#e7f5ec; color:#31724f; }
+  .badge-Quality     { background:#fcf1de; color:#8f7134; }
+  .badge-Production  { background:#fbf7ea; color:#8f7134; }
+  .badge-Cost        { background:#edeaf7; color:#5b4d7a; }
+  .badge-HRD         { background:#e8f4f0; color:#1f6c5c; }
+
+  .shift-white  { color:#5f7560; font-weight:700; font-size:11px; }
+  .shift-yellow { color:#7f7650; font-weight:700; font-size:11px; }
+
+  .tooltip {
+    position:fixed; z-index:999;
+    background:#7b6550; color:#fff;
+    padding:5px 10px; border-radius:6px;
+    font-size:11px; pointer-events:none;
+    display:none; box-shadow:0 4px 16px rgba(46,69,60,.28);
+  }
+</style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="month-popup-overlay" id="monthOverlay" onclick="closeMonthPopup()"></div>
+<div class="month-popup" id="monthPopup">
+  <div class="month-popup-title">Month Name</div>
+  <div class="month-grid">
+    <button class="sidebar-btn select-all-month active" onclick="toggleMonth('all')">Select all</button>
+    <button class="sidebar-btn" id="m-Jan" onclick="toggleMonth('Jan')">January</button>
+    <button class="sidebar-btn" id="m-Feb" onclick="toggleMonth('Feb')">February</button>
+    <button class="sidebar-btn" id="m-Mar" onclick="toggleMonth('Mar')">March</button>
+    <button class="sidebar-btn" id="m-Apr" onclick="toggleMonth('Apr')">April</button>
+    <button class="sidebar-btn" id="m-May" onclick="toggleMonth('May')">May</button>
+    <button class="sidebar-btn" id="m-Jun" onclick="toggleMonth('Jun')">June</button>
+    <button class="sidebar-btn" id="m-Jul" onclick="toggleMonth('Jul')">July</button>
+    <button class="sidebar-btn" id="m-Aug" onclick="toggleMonth('Aug')">August</button>
+    <button class="sidebar-btn" id="m-Sep" onclick="toggleMonth('Sep')">September</button>
+    <button class="sidebar-btn" id="m-Oct" onclick="toggleMonth('Oct')">October</button>
+    <button class="sidebar-btn" id="m-Nov" onclick="toggleMonth('Nov')">November</button>
+    <button class="sidebar-btn" id="m-Dec" onclick="toggleMonth('Dec')">December</button>
+  </div>
+</div>
+
+<div class="top-header">
+  <div class="header-year-panel">
+    <span class="label">Year</span>
+    <button class="toggle-btn select-all active" id="yr-all" onclick="toggleYear('all')">Select all</button>
+    <div id="yearButtonsContainer"></div>
+  </div>
+  <div class="header-title">(W) Quality Real-Time Monitoring</div>
+  <div class="header-shift-panel">
+    <span class="label">Shift</span>
+    <button class="toggle-btn select-all active" id="sh-all" onclick="toggleShift('all')">Select all</button>
+    <button class="toggle-btn" id="sh-w" onclick="toggleShift('W')">W</button>
+    <button class="toggle-btn" id="sh-y" onclick="toggleShift('Y')">Y</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Month Name</div>
+      <button class="month-trigger-btn" id="monthTriggerBtn" onclick="toggleMonthPopup(event)">
+        <span id="monthBtnLabel">Select all</span>
+        <span class="arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Kumi</div>
+      <div class="kumi-grid">
+        <button class="sidebar-btn kumi-full select-all-month active" onclick="toggleKumi('all')">Select all</button>
+        <button class="sidebar-btn" id="k-CAB3" onclick="toggleKumi('CAB3')">CAB3 and Fr. Floor</button>
+        <button class="sidebar-btn" id="k-RrFloor" onclick="toggleKumi('RrFloor')">Rr. Floor</button>
+        <button class="sidebar-btn" id="k-SideMenber" onclick="toggleKumi('SideMenber')">Side Menber</button>
+        <button class="sidebar-btn" id="k-DeckSlat" onclick="toggleKumi('DeckSlat')">Deck and Slat</button>
+        <button class="sidebar-btn" id="k-Shell3" onclick="toggleKumi('Shell3')">Shell3</button>
+        <button class="sidebar-btn" id="k-Shell3RH" onclick="toggleKumi('Shell3RH')">Shell3 Roller Hem</button>
+        <button class="sidebar-btn" id="k-Logistics" onclick="toggleKumi('Logistics')">Logistics</button>
+        <button class="sidebar-btn" id="k-Inspection" onclick="toggleKumi('Inspection')">Inspection</button>
+      </div>
+    </div>
+    <div class="sidebar-bottom">
+      <a id="goToFormBtn" href="form.html" class="back-btn">กรอกข้อมูล</a>
+      <a id="goToHistoryBtn" href="history.html" class="back-btn">ประวัติ</a>
+      <a id="backToMenuBtn" href="menu.html" class="back-btn">⬅ BACK TO MENU</a>
+      <button class="clear-btn" onclick="clearAllSelections()">Clear All Select</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-header">SQA</div>
+        <div class="chart-body"><div class="bar-chart-wrap"><svg class="bar-chart" id="chart-SQA" width="100%" height="160" viewBox="0 0 260 160"></svg></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">CVI</div>
+        <div class="chart-body"><div class="bar-chart-wrap"><svg class="bar-chart" id="chart-CVI" width="100%" height="160" viewBox="0 0 260 160"></svg></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">EDP</div>
+        <div class="chart-body"><div class="bar-chart-wrap"><svg class="bar-chart" id="chart-EDP" width="100%" height="160" viewBox="0 0 260 160"></svg></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">(W) Inspection</div>
+        <div class="chart-body"><div class="bar-chart-wrap"><svg class="bar-chart" id="chart-Inspection" width="100%" height="160" viewBox="0 0 260 160"></svg></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">(W) Japan Export</div>
+        <div class="chart-body"><div class="bar-chart-wrap"><svg class="bar-chart" id="chart-JapanExport" width="100%" height="160" viewBox="0 0 260 160"></svg></div></div>
+      </div>
+    </div>
+
+    <div class="mini-chart-row">
+      <div class="mini-card">
+        <div class="mini-header">No Item Check</div>
+        <div class="mini-body"><svg id="mini-NoItemCheck" width="100%" height="180" viewBox="0 0 360 180"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Poor Skill</div>
+        <div class="mini-body"><svg id="mini-PoorSkill" width="100%" height="180" viewBox="0 0 360 180"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Poor Standard</div>
+        <div class="mini-body"><svg id="mini-PoorStandard" width="100%" height="180" viewBox="0 0 360 180"></svg></div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-header">Environment</div>
+        <div class="mini-body"><svg id="mini-Environment" width="100%" height="180" viewBox="0 0 360 180"></svg></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>KPI Type</th><th>Kumi</th>
+              <th>Main KPI</th><th>Sub KPI</th><th>Process KPI</th>
+              <th>ช่วงเวลา</th><th>Shift</th><th>Mins</th>
+              <th>Problem</th><th>KPI Monitor</th><th>Target</th><th>Actual</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="13" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>
+          </tbody>
+        
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* chart color constants — softer quality palette */
+const CM_BAR_OK  = '#5f826e';   /* actual >= target */
+const CM_BAR_NG  = '#c17a75';   /* actual <  target */
+const CM_TARGET  = '#6c7d6f';   /* target dashed line */
+const CM_GRID    = '#d8e2d8';
+const CM_AXIS    = '#5f7560';
+const CM_LABEL   = '#7a8b7c';
+const CM_EMPTY   = '#bfc9c1';
+
+let selectedYears=['all'],selectedShifts=['all'],selectedMonths=['all'],selectedKumis=['all'];
+const BASE_URL = (window.APP && typeof APP.initAppState === 'function') ? APP.initAppState() : '';
+let allApiRecords=[],debounceTimer=null;
+
+function goToMenu(event){
+  if(event)event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('menu'));
+  else window.location.href = 'menu.html';
+}
+function goToForm(event){
+  if(event) event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('form'));
+  else window.location.href = 'form.html';
+}
+function goToHistory(event){
+  if(event) event.preventDefault();
+  if(window.APP && typeof APP.safeNavigate === 'function') APP.safeNavigate(APP.buildPageHref('history'));
+  else window.location.href = 'history.html';
+}
+
+function toggleMonthPopup(e){
+  e.stopPropagation();
+  const btn=document.getElementById('monthTriggerBtn'),popup=document.getElementById('monthPopup'),overlay=document.getElementById('monthOverlay');
+  if(popup.classList.contains('visible')){closeMonthPopup();return;}
+  const rect=btn.getBoundingClientRect();
+  popup.style.left=rect.left+'px';popup.style.top=(rect.bottom+4)+'px';
+  popup.classList.add('visible');overlay.classList.add('visible');btn.classList.add('open');
+}
+function closeMonthPopup(){
+  document.getElementById('monthPopup').classList.remove('visible');
+  document.getElementById('monthOverlay').classList.remove('visible');
+  document.getElementById('monthTriggerBtn').classList.remove('open');
+}
+function updateMonthBtnLabel(){
+  const btn=document.getElementById('monthTriggerBtn'),lbl=document.getElementById('monthBtnLabel');
+  if(selectedMonths.includes('all')||!selectedMonths.length){lbl.textContent='Select all';btn.classList.remove('has-selection');}
+  else if(selectedMonths.length===1){lbl.textContent=selectedMonths[0];btn.classList.add('has-selection');}
+  else{lbl.textContent=selectedMonths.length+' months';btn.classList.add('has-selection');}
+}
+
+function parseCsvLine(line){
+  const values=[]; let cur=''; let inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){
+      if(inQuotes && line[i+1]==='"'){cur+='"'; i++;}
+      else{inQuotes=!inQuotes;}
+    }else if(ch===',' && !inQuotes){values.push(cur); cur='';}
+    else{cur+=ch;}
+  }
+  values.push(cur);
+  return values.map(v=>v.trim());
+}
+
+function parseCsv(text){
+  const rows=[];
+  const lines=text.split(/\r?\n/).map(l=>l.trimEnd());
+  if(!lines.length || !lines[0].trim()) return rows;
+  const headers=parseCsvLine(lines[0]);
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const values=parseCsvLine(lines[i]);
+    const obj={};
+    headers.forEach((header,idx)=>{obj[header]=values[idx]||'';});
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function normalizeApiRecord(r){
+  return {
+    kpi: (r.kpi || r.KPI || r.Kpi || '').trim(),
+    record_date: (r.record_date || r.Problem_Date || r.record_date || '').trim(),
+    problem_date: r.Problem_Date || r.record_date || '',
+    kumi: r.kumi || r.Kumi || r.KUMI || '',
+    process_kpi: r.process_kpi || r.Process_PKI || r.Process_KPI || '',
+    main_kpi: r.main_kpi || r.Main_KPI || r.Main_Kpi || '',
+    sub_kpi: r.sub_kpi || r.Sub_KPI || r.Sub_Kpi || '',
+    problem_detail: r.problem_detail || r.Detail || '',
+    problem_time: r.problem_time || r.Problem_Time || '',
+    shift: r.shift || r.Problem_Shift || '',
+    problem_hour: r.problem_hour || r.Problem_Hour || '',
+    target: r.target != null ? r.target : (r.Problem_Target != null ? r.Problem_Target : (r.Problem_QTY != null ? r.Problem_QTY : '')),
+    actual: r.actual != null ? r.actual : (r.Problem_Actual != null ? r.Problem_Actual : ''),
+    unit_problem: r.unit_problem || r.Unit_Problem || r.QTY_Unit || ''
+  };
+}
+
+async function loadAllRecords(){
+  document.getElementById('tableBody').innerHTML='<tr><td colspan="13" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>';
+  try{
+    const params={page:1,per_page:1000,sort_col:'record_date',sort_dir:'desc'};
+    // 1) Try Apps Script endpoint when configured
+    if (typeof BASE_URL === 'string' && BASE_URL) {
+      try{
+        const resp = await fetch(BASE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'getMonitoringData', args:[params] }) });
+        if (resp.ok){ const json = await resp.json(); if (json && Array.isArray(json.records)){ allApiRecords = json.records.map(normalizeApiRecord); applyFiltersAndRender(); return; } }
+      }catch(e){ console.warn('Apps Script fetch failed:', e.message); }
+    }
+
+    // 2) Try local API when served via http(s)
+    if (window.location.host) {
+      const allRec = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const query = new URLSearchParams(Object.assign({ page, per_page: 200, sort_col: 'record_date', sort_dir: 'desc' }, params));
+        const url = '/api/records?' + query.toString();
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const json = await resp.json();
+        allRec.push(...(json.records || []));
+        totalPages = json.pages || 1;
+        page += 1;
+      } while (page <= totalPages);
+      allApiRecords = allRec.map(normalizeApiRecord);
+      applyFiltersAndRender();
+      return;
+    }
+
+    // 3) CSV fallback
+    const sheetUrl='https://docs.google.com/spreadsheets/d/1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E/export?format=csv&gid=2045278866';
+    const response=await fetch(sheetUrl,{cache:'no-store'});
+    if(!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้');
+    const csv=await response.text();
+    const rows=parseCsv(csv);
+    const records=rows.filter(r=>(r.KPI||'').trim().toLowerCase()==='quality').map(r=>normalizeApiRecord({
+      kpi:(r.KPI||'').trim(),
+      record_date:r.record_date || r.Problem_Date || '',
+      problem_date:r.Problem_Date || r.record_date || '',
+      kumi:r.Kumi || '',
+      process_kpi:r.Process_KPI || '',
+      main_kpi:r.Main_KPI || '',
+      sub_kpi:r.Sub_KPI || '',
+      problem_detail:r.Detail || '',
+      problem_time:r.Problem_Time || '',
+      shift:r.Problem_Shift || '',
+      problem_hour:r.Problem_Hour || '',
+      target:r.Problem_Target || r.Problem_QTY || '',
+      actual:r.Problem_Actual || '',
+      unit_problem:r.Unit_Problem || r.QTY_Unit || ''
+    }));
+    allApiRecords=records;applyFiltersAndRender();
+  }catch(err){
+    document.getElementById('tableBody').innerHTML=`<tr><td colspan="13" class="table-loading">❌ โหลดล้มเหลว: ${err.message}</td></tr>`;
+  }
+}
+
+function applyFiltersAndRender(){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const kumiKeyMap={CAB3:'CAB3',RrFloor:'Rr.',SideMenber:'Side',DeckSlat:'Deck',Shell3:'Shell3',Shell3RH:'Roller',Logistics:'Logistic',Inspection:'Inspect'};
+  const filtered=allApiRecords.filter(r=>{
+    if((r.kpi||'').trim().toLowerCase()!=='quality')return false;
+    const dp=(r.record_date||'').split('-');
+    const ry=dp[0]||'',rm=MS[parseInt(dp[1]||'0',10)-1]||'';
+    if(!selectedYears.includes('all')&&!selectedYears.includes(ry))return false;
+    if(!selectedMonths.includes('all')&&!selectedMonths.includes(rm))return false;
+    if(!selectedShifts.includes('all')){
+      const sv=(r.shift||'').toLowerCase();
+      if(!selectedShifts.some(s=>(s==='W'&&sv.includes('white'))||(s==='Y'&&sv.includes('yellow'))))return false;
+    }
+    if(!selectedKumis.includes('all')){
+      if(!selectedKumis.some(k=>r.kumi&&r.kumi.toLowerCase().includes((kumiKeyMap[k]||k).toLowerCase())))return false;
+    }
+    return true;
+  });
+  const rows=filtered.map(apiToRow);
+  renderTable(rows);
+  buildAllCharts(filtered,rows);
+}
+
+function apiToRow(r){
+  let tr=r.problem_time||'-';
+  if(r.problem_time&&r.problem_time!=='-'&&r.problem_time.includes(':')){
+    const[h,m]=r.problem_time.split(':').map(Number);
+    tr=`${r.problem_time} - ${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  return{record_date:r.problem_date||'',kpi:r.kpi||'',kumi:r.kumi||'',process_kpi:r.process_kpi||'',main_kpi:r.main_kpi||'',sub_kpi2:r.sub_kpi||'',time_range:tr,shift:r.shift||'',mins:r.problem_hour||'0',problem:r.problem_detail||'',kpi_mon:r.shift||'',target:r.target||'',actual:r.actual||'',unit:r.unit_problem||''};
+}
+
+function getXAxisMode(){
+  return(!selectedMonths.includes('all')&&selectedMonths.length===1)?'date':'month';
+}
+
+function buildChartData(records,keyField,matchValue,xMode){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const grouped=new Map();
+  records.forEach(r=>{
+    const fieldVal=(keyField==='main_kpi'?r.main_kpi:r.sub_kpi)||'';
+    if(!fieldVal.toLowerCase().includes(matchValue.toLowerCase()))return;
+    const date=r.record_date||'';if(!date)return;
+    let xKey,sortKey;
+    if(xMode==='date'){
+      const p=date.split('-');xKey=p.length>=3?`${p[1]}-${p[2]}`:date;sortKey=xKey;
+    }else{
+      const p=date.split('-'),mi=parseInt(p[1]||'0',10)-1,yr2=(p[0]||'').slice(2);
+      xKey=(MS[mi]||'?')+'-'+yr2;sortKey=(p[0]||'0000')+'-'+(p[1]||'00');
+    }
+    if(!grouped.has(xKey))grouped.set(xKey,{actuals:[],targets:[],sortKey});
+    const en=grouped.get(xKey);
+    const aV=parseFloat(r.actual),tV=parseFloat(r.target);
+    if(!isNaN(aV))en.actuals.push(aV);
+    if(!isNaN(tV))en.targets.push(tV);
+  });
+  return[...grouped.entries()].sort((a,b)=>a[1].sortKey.localeCompare(b[1].sortKey)).map(([label,v])=>({
+    label,
+    actual:v.actuals.length?v.actuals[v.actuals.length-1]:0,
+    target:v.targets.length?v.targets[0]:null
+  }));
+}
+
+function buildAllCharts(apiRecords){
+  const xMode=getXAxisMode();
+  [{svgId:'chart-SQA',kw:'SQA'},{svgId:'chart-CVI',kw:'CVI'},{svgId:'chart-EDP',kw:'EDP'},{svgId:'chart-Inspection',kw:'Inspection'},{svgId:'chart-JapanExport',kw:'Japan Export'}]
+    .forEach(c=>renderActualTargetChart(c.svgId,buildChartData(apiRecords,'main_kpi',c.kw,xMode),260,160));
+  [{svgId:'mini-NoItemCheck',kw:'No Item Check'},{svgId:'mini-PoorSkill',kw:'Poor Skill'},{svgId:'mini-PoorStandard',kw:'Poor Standard'},{svgId:'mini-Environment',kw:'Environment'}]
+    .forEach(c=>renderActualTargetChart(c.svgId,buildChartData(apiRecords,'sub_kpi',c.kw,xMode),360,180));
+}
+
+function renderActualTargetChart(svgId,data,W,H){
+  const svg=document.getElementById(svgId);if(!svg)return;
+  const pL=34,pR=10,pT=18,pB=44,cW=W-pL-pR,cH=H-pT-pB;
+  if(!data||!data.length){
+    svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="11" fill="${CM_EMPTY}">ไม่มีข้อมูล</text>`;return;
+  }
+  const allV=data.map(d=>d.actual).concat(data.map(d=>d.target||0));
+  const maxVal=Math.max(...allV.filter(v=>!isNaN(v)&&v>0),1)*1.15;
+  const n=data.length,slotW=cW/Math.max(n,1),bW=Math.max(4,slotW*0.55);
+  let h='';
+  for(let i=0;i<=4;i++){
+    const y=pT+cH-(i/4)*cH;
+    h+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="${CM_GRID}" stroke-width="1"/>`;
+    h+=`<text x="${pL-4}" y="${y+4}" text-anchor="end" font-size="9" fill="${CM_LABEL}">${fmtV(maxVal*i/4)}</text>`;
+  }
+  h+=`<line x1="${pL}" y1="${pT+cH}" x2="${W-pR}" y2="${pT+cH}" stroke="${CM_AXIS}" stroke-width="1.5"/>`;
+  h+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+cH}" stroke="${CM_AXIS}" stroke-width="1.5"/>`;
+  data.forEach((d,i)=>{
+    const cx=pL+i*slotW+slotW/2,bx=cx-bW/2;
+    const aV=isNaN(d.actual)?0:d.actual;
+    const bh=aV<=0?1:(aV/maxVal)*cH,by=pT+cH-bh;
+    const fill=(d.target!==null&&!isNaN(d.target)&&aV>=d.target)?CM_BAR_OK:CM_BAR_NG;
+    h+=`<rect x="${bx}" y="${by}" width="${bW}" height="${bh}" rx="2" fill="${fill}" opacity="0.88"
+      onmouseenter="showTip(event,'${esc(d.label)}: ${aV}')" onmouseleave="hideTip()"/>`;
+    if(aV>0)h+=`<text x="${cx}" y="${by-3}" text-anchor="middle" font-size="9" fill="${fill}" font-weight="700">${aV}</text>`;
+    h+=`<text x="${cx}" y="${H-pB+14}" text-anchor="middle" font-size="9" fill="${CM_LABEL}"
+      transform="rotate(-35,${cx},${H-pB+14})">${esc(d.label)}</text>`;
+  });
+  const tV=data.find(d=>d.target!==null&&!isNaN(d.target));
+  if(tV){
+    const ty=pT+cH-(tV.target/maxVal)*cH;
+    h+=`<line x1="${pL}" y1="${ty}" x2="${W-pR}" y2="${ty}" stroke="${CM_TARGET}" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+    h+=`<text x="${W-pR-2}" y="${Math.max(pT+8,ty-3)}" text-anchor="end" font-size="9" fill="${CM_TARGET}" font-weight="700">▸ ${tV.target}</text>`;
+  }
+  const lY=H-4;
+  h+=`<rect x="${pL}" y="${lY-8}" width="9" height="7" rx="1" fill="${CM_BAR_OK}"/><text x="${pL+12}" y="${lY}" font-size="8" fill="${CM_LABEL}">≥ Target</text>`;
+  h+=`<rect x="${pL+58}" y="${lY-8}" width="9" height="7" rx="1" fill="${CM_BAR_NG}"/><text x="${pL+70}" y="${lY}" font-size="8" fill="${CM_LABEL}">&lt; Target</text>`;
+  if(tV){h+=`<line x1="${pL+118}" y1="${lY-4}" x2="${pL+130}" y2="${lY-4}" stroke="${CM_TARGET}" stroke-width="1.5" stroke-dasharray="4,2"/><text x="${pL+133}" y="${lY}" font-size="8" fill="${CM_LABEL}">Target</text>`;}
+  svg.innerHTML=h;
+}
+
+function fmtV(v){if(v===0)return'0';if(v>=1000)return(v/1000).toFixed(1)+'k';return Number.isInteger(v)?v:v.toFixed(1);}
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function kpiBadge(kpi){const c=['Safety','Environment','Quality','Production','Cost','HRD'].includes(kpi)?`badge-${kpi}`:'badge-Production';return`<span class="badge ${c}">● ${esc(kpi)}</span>`;}
+function shiftSpan(s){return`<span class="${s&&s.toLowerCase().includes('white')?'shift-white':'shift-yellow'}">${esc(s)}</span>`;}
+function actualColor(a,t){const av=parseFloat(a),tv=parseFloat(t);if(isNaN(av)||isNaN(tv)||tv===0)return'inherit';return av>=tv?'#5f7b67':'#a15357';}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="table-loading">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>';
+    
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td>${esc(r.record_date)}</td>
+    <td>${kpiBadge(r.kpi)}</td>
+    <td style="font-weight:600">${esc(r.kumi)}</td>
+    <td>${esc(r.main_kpi)}</td>
+    <td style="color:var(--text-light);font-size:10px">${esc(r.sub_kpi2)}</td>
+    <td style="color:var(--text-light)" title="${esc(r.process_kpi)}">${esc(r.process_kpi)}</td>
+    <td style="font-size:10px;font-family:monospace">${esc(r.time_range)}</td>
+    <td>${shiftSpan(r.shift)}</td>
+    <td>${esc(r.mins)}</td>
+    <td class="td-problem">${esc(r.problem)}</td>
+    <td>${esc(r.kpi_mon)}</td>
+    <td>${esc(r.target)} ${esc(r.unit)}</td>
+    <td style="color:${actualColor(r.actual,r.target)};font-weight:700">${esc(r.actual)} ${esc(r.unit)}</td>
+  </tr>`).join('');
+  const unitRow = rows.find(r => r.unit);
+}
+
+function showTip(e,text){const t=document.getElementById('tooltip');t.textContent=text;t.style.display='block';t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-28)+'px';}
+function hideTip(){document.getElementById('tooltip').style.display='none';}
+
+// Generate year buttons dynamically
+(function() {
+  var container = document.getElementById('yearButtonsContainer');
+  if (!container) return;
+  var currentYear = new Date().getFullYear();
+  var startYear = 2024;
+  var endYear = currentYear + 1;
+  for (var y = startYear; y <= endYear; y++) {
+    var btn = document.createElement('button');
+    btn.className = 'toggle-btn';
+    btn.id = 'yr-' + y;
+    btn.textContent = y.toString();
+    btn.onclick = function(year) { return function() { toggleYear(year.toString()); }; }(y);
+    container.appendChild(btn);
+  }
+})();
+
+function toggleYear(yr){
+  if(yr==='all'){selectedYears=['all'];var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,false));setA('yr-all',true);}
+  else{selectedYears=selectedYears.filter(v=>v!=='all');const idx=selectedYears.indexOf(yr);idx>=0?selectedYears.splice(idx,1):selectedYears.push(yr);setA('yr-all',false);var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,selectedYears.includes(b.id.substring(3))));if(!selectedYears.length){selectedYears=['all'];setA('yr-all',true);}}
+  debouncedRender();
+}
+function toggleShift(sh){
+  if(sh==='all'){selectedShifts=['all'];setA('sh-w',false);setA('sh-y',false);setA('sh-all',true);}
+  else{selectedShifts=selectedShifts.filter(v=>v!=='all');const idx=selectedShifts.indexOf(sh);idx>=0?selectedShifts.splice(idx,1):selectedShifts.push(sh);setA('sh-all',false);['W','Y'].forEach(s=>setA('sh-'+s,selectedShifts.includes(s)));if(!selectedShifts.length){selectedShifts=['all'];setA('sh-all',true);}}
+  debouncedRender();
+}
+function toggleMonth(m){
+  const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(m==='all'){selectedMonths=['all'];ms.forEach(mn=>setA('m-'+mn,false));document.querySelector('#monthPopup .select-all-month').classList.add('active');}
+  else{selectedMonths=selectedMonths.filter(v=>v!=='all');document.querySelector('#monthPopup .select-all-month').classList.remove('active');const idx=selectedMonths.indexOf(m);idx>=0?selectedMonths.splice(idx,1):selectedMonths.push(m);ms.forEach(mn=>setA('m-'+mn,selectedMonths.includes(mn)));if(!selectedMonths.length){selectedMonths=['all'];document.querySelector('#monthPopup .select-all-month').classList.add('active');}}
+  updateMonthBtnLabel();debouncedRender();
+}
+function toggleKumi(k){
+  const ks=['CAB3','RrFloor','SideMenber','DeckSlat','Shell3','Shell3RH','Logistics','Inspection'];
+  if(k==='all'){selectedKumis=['all'];ks.forEach(ki=>setA('k-'+ki,false));document.querySelector('.kumi-grid .select-all-month')?.classList.add('active');}
+  else{selectedKumis=selectedKumis.filter(v=>v!=='all');const idx=selectedKumis.indexOf(k);idx>=0?selectedKumis.splice(idx,1):selectedKumis.push(k);ks.forEach(ki=>setA('k-'+ki,selectedKumis.includes(ki)));if(!selectedKumis.length)selectedKumis=['all'];}
+  debouncedRender();
+}
+function clearAllSelections(){
+  selectedYears=['all'];selectedShifts=['all'];selectedMonths=['all'];selectedKumis=['all'];
+  ['yr-all','sh-all'].forEach(id=>setA(id,true));
+  ['yr-2024','yr-2025','yr-2026','sh-w','sh-y'].forEach(id=>setA(id,false));
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.select-all-month').forEach(b=>b.classList.add('active'));
+  updateMonthBtnLabel();debouncedRender();
+}
+function setA(id,on){const el=document.getElementById(id);if(el)on?el.classList.add('active'):el.classList.remove('active');}
+function debouncedRender(){clearTimeout(debounceTimer);debounceTimer=setTimeout(applyFiltersAndRender,80);}
+
+['chart-SQA','chart-CVI','chart-EDP','chart-Inspection','chart-JapanExport'].forEach(id=>renderActualTargetChart(id,[],260,160));
+['mini-NoItemCheck','mini-PoorSkill','mini-PoorStandard','mini-Environment'].forEach(id=>renderActualTargetChart(id,[],360,180));
+loadAllRecords();
+
+function startRealtime(){ if(typeof EventSource==='undefined') return; try{ var es=new EventSource('/api/stream'); es.onmessage=function(ev){ try{ var payload=JSON.parse(ev.data); if(payload && payload.records){ allApiRecords=payload.records; applyFiltersAndRender(); } }catch(err){console.error('stream parse',err);} }; es.onerror=function(){ setTimeout(startRealtime,5000); }; }catch(e){console.error('SSE failed',e);} }
+startRealtime();
+</script>
+<script>
+  (function(){
+    if (location.pathname.endsWith('/menu.html') || location.pathname.endsWith('/login.html')) return;
+    if (document.getElementById('backToMenuBtn')) return;
+    var sidebarA = Array.from(document.querySelectorAll('.sidebar-bottom a.back-btn')).find(function(a){ return /BACK TO MENU/i.test(a.textContent); });
+    if(sidebarA){ sidebarA.setAttribute('target','_top'); sidebarA.onclick = function(e){ e.preventDefault(); goToMenu(e); }; }
+  })();
+</script>
+</body>
+</html>

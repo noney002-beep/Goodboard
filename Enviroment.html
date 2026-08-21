@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(W) Environment Real-Time Monitoring</title>
+<style>
+  :root {
+    --pk-darkest:  #6f4b57;
+    --pk-dark:     #8f6573;
+    --pk-mid:      #b18a96;
+    --pk-anchor:   #d0b5bb;
+    --pk-base:     #e8d7dc;
+    --pk-light:    #f2e8ec;
+    --pk-pale:     #f8eff2;
+    --pk-ice:      #fbf5f7;
+    --pk-cream:    #fef8f8;
+    --pk-border:   #d6c2c4;
+    --pk-text:     #5b3d44;
+    --pk-text-lt:  #7b5f67;
+    --pk-grid:     #e9d8db;
+    --sidebar-bg-top: #efe1e3;
+    --sidebar-bg-bot: #f7eff0;
+    --bg: #f8f6ef;
+    --text: #523c41;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+  /* ── header ── */
+  .top-header{display:flex;align-items:center;background:linear-gradient(135deg,#a76a73 0%,#c89aa5 35%,#e6d2d6 75%,#f9eeef 100%);color:#fff;min-height:52px;flex-shrink:0;box-shadow:0 2px 12px rgba(95,60,66,.18);}
+  .header-year-panel{background:rgba(255,255,255,.13);backdrop-filter:blur(4px);min-width:200px;display:flex;align-items:center;gap:5px;padding:8px 10px;border-right:1.5px solid rgba(255,255,255,.28);flex-shrink:0;}
+  .header-year-panel .label{font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+  .header-title{flex:1;text-align:center;font-size:30px;font-weight:800;letter-spacing:1px;color:#fff;text-shadow:0 1px 8px rgba(140,40,80,.3);}
+  .header-shift-panel{background:rgba(255,255,255,.13);backdrop-filter:blur(4px);min-width:155px;display:flex;align-items:center;gap:5px;padding:8px 10px;border-left:1.5px solid rgba(255,255,255,.28);flex-shrink:0;}
+  .header-shift-panel .label{font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+
+  .toggle-btn{padding:4px 10px;border-radius:6px;border:1.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.18);color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;outline:none;white-space:nowrap;}
+  .toggle-btn:hover{background:rgba(255,255,255,.35);color:#5b7d6f;}
+  .toggle-btn.active{background:rgba(255,255,255,.38);color:#5b7d6f;border-color:rgba(255,255,255,.6);}
+  .toggle-btn.select-all{font-size:11px;padding:4px 8px;}
+  .toggle-btn.select-all.active{background:rgba(255,255,255,.32);color:#7d9c8b;}
+
+  /* ── layout ── */
+  .main-layout{display:flex;flex:1;overflow:hidden;min-height:0;}
+  .sidebar{width:200px;background:linear-gradient(180deg,var(--sidebar-bg-top) 0%,var(--sidebar-bg-bot) 100%);color:var(--pk-text);display:flex;flex-direction:column;flex-shrink:0;border-right:2px solid var(--pk-base);overflow-y:auto;overflow-x:hidden;}
+  .sidebar-section{padding:8px 8px 6px 8px;border-bottom:1px solid var(--pk-border);}
+  .sidebar-section-title{font-size:10px;font-weight:800;color:var(--pk-dark);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;}
+  .month-trigger-btn{width:100%;padding:6px 8px;border-radius:7px;border:1.5px solid var(--pk-mid);background:linear-gradient(90deg,#f2d2d5,#f9e5e7);color:var(--pk-text);font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:background .15s;outline:none;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+  .month-trigger-btn:hover{background:linear-gradient(90deg,var(--pk-anchor),var(--pk-base));color:#fff;}
+  .month-trigger-btn.has-selection{background:linear-gradient(90deg,var(--pk-mid),var(--pk-anchor));color:#fff;}
+  .month-trigger-btn .arrow{font-size:10px;transition:transform .2s;}
+  .month-trigger-btn.open .arrow{transform:rotate(180deg);}
+  .month-popup-overlay{display:none;position:fixed;inset:0;z-index:100;}
+  .month-popup-overlay.visible{display:block;}
+  .month-popup{position:fixed;z-index:101;background:linear-gradient(160deg,#f7e6e8,#fbf2f3);border:1.5px solid var(--pk-border);border-radius:10px;box-shadow:0 8px 32px rgba(95,60,66,.14);padding:12px;width:220px;display:none;}
+  .month-popup.visible{display:block;}
+  .month-popup-title{font-size:11px;font-weight:800;color:var(--pk-text);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+  .month-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;}
+  .kumi-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+
+  .sidebar-btn{padding:5px 4px;border-radius:6px;border:1px solid var(--pk-border);background:linear-gradient(90deg,#f9d8e4,#fdeaef);color:var(--pk-text);font-size:10px;font-weight:600;cursor:pointer;text-align:center;transition:background .15s,color .15s;outline:none;}
+  .sidebar-btn:hover{background:linear-gradient(90deg,var(--pk-anchor),var(--pk-base));color:#fff;}
+  .sidebar-btn.active{background:linear-gradient(90deg,var(--pk-mid),var(--pk-anchor));color:#fff;border-color:var(--pk-mid);}
+  .sidebar-btn.select-all-month{grid-column:1/-1;background:#f0dee2;color:var(--pk-text);font-size:10px;}
+  .sidebar-btn.select-all-month.active{background:linear-gradient(90deg,var(--pk-dark),var(--pk-mid));color:#fff;}
+  .sidebar-btn.kumi-full{grid-column:1/-1;}
+
+  .sidebar-bottom{margin-top:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+  .back-btn{display:flex;align-items:center;gap:8px;background:linear-gradient(90deg,#f0c0d0,#f9dae4);border:1.5px solid var(--pk-border);color:var(--pk-text);font-size:11px;font-weight:700;padding:6px 8px;border-radius:7px;cursor:pointer;transition:background .15s;text-decoration:none;}
+  .back-btn:hover{background:linear-gradient(90deg,var(--pk-anchor),var(--pk-base));color:#fff;}
+  .clear-btn{background:linear-gradient(90deg,var(--pk-dark),var(--pk-base));color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;transition:opacity .15s;}
+  .clear-btn:hover{opacity:.85;}
+
+  /* ── content ── */
+  .content{flex:1;display:flex;flex-direction:column;padding:6px 8px;gap:6px;overflow-y:auto;min-width:0;min-height:0;}
+
+  /* ── top area ── */
+  .top-area{display:grid;grid-template-columns:1fr;gap:8px;flex-shrink:0;}
+  .chart-grid-3x3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+  .chart-card{background:var(--pk-cream);border-radius:8px;box-shadow:0 1px 6px rgba(160,48,96,.10);overflow:hidden;border:1px solid var(--pk-border);}
+  .chart-header{background:linear-gradient(90deg,var(--pk-mid),var(--pk-anchor));color:#fff;font-size:11px;font-weight:800;padding:4px 6px;text-align:center;}
+  .chart-body{padding:2px;background:var(--pk-cream);}
+  svg.bar-chart{display:block;width:100%;height:auto;}
+
+  /* ── shared table ── */
+  .data-table{width:100%;border-collapse:collapse;}
+  .data-table thead tr{background:linear-gradient(90deg,var(--pk-mid),var(--pk-anchor));color:#fff;}
+  .data-table thead th{padding:4px 4px;font-weight:700;text-align:center;border-right:1px solid rgba(255,255,255,.25);white-space:nowrap;font-size:10px;}
+  .data-table tbody tr:nth-child(even){background:var(--pk-pale);}
+  .data-table tbody tr:hover{background:#f9d8e466;}
+  .data-table tbody td{padding:3px 4px;border-right:1px solid var(--pk-grid);border-bottom:1px solid var(--pk-grid);text-align:center;white-space:nowrap;font-size:10px;overflow:hidden;max-width:0;}
+  .data-table tbody td.td-left{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .data-table tfoot tr{background:linear-gradient(90deg,var(--pk-base),var(--pk-light));color:var(--pk-text);font-weight:800;}
+  .data-table tfoot td{padding:4px 4px;text-align:center;font-size:10px;}
+  .table-loading{text-align:center;padding:10px;color:var(--pk-text-lt);font-size:11px;}
+
+  /* ── bottom table ── */
+  .table-card{background:var(--pk-cream);border-radius:8px;box-shadow:0 1px 6px rgba(160,48,96,.10);overflow:hidden;flex-shrink:0;border:1px solid var(--pk-border);}
+  .bottom-table{width:100%;table-layout:fixed;}
+  .bottom-table col.c-date     {width:7%;}
+  .bottom-table col.c-kumi     {width:11%;}
+  .bottom-table col.c-mainkpi  {width:8%;}
+  .bottom-table col.c-subkpi   {width:9%;}
+  .bottom-table col.c-pkpi     {width:12%;}
+  .bottom-table col.c-time     {width:10%;}
+  .bottom-table col.c-shift    {width:5%;}
+  .bottom-table col.c-mins     {width:4%;}
+  .bottom-table col.c-problem  {width:18%;}
+  .bottom-table col.c-monitor  {width:5%;}
+  .bottom-table col.c-target   {width:5%;}
+  .bottom-table col.c-actual   {width:6%;}
+
+  .shift-white {color:var(--pk-dark);font-weight:700;font-size:10px;}
+  .shift-yellow{color:#8C6A00;font-weight:700;font-size:10px;}
+  .tooltip{position:fixed;z-index:999;background:linear-gradient(135deg,var(--pk-dark),var(--pk-mid));color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;pointer-events:none;display:none;box-shadow:0 4px 16px rgba(160,48,96,.3);}
+</style>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+<script src="app.js"></script>
+</head>
+<body>
+<div class="tooltip" id="tooltip"></div>
+<div class="month-popup-overlay" id="monthOverlay" onclick="closeMonthPopup()"></div>
+<div class="month-popup" id="monthPopup">
+  <div class="month-popup-title">Month Name</div>
+  <div class="month-grid">
+    <button class="sidebar-btn select-all-month active" onclick="toggleMonth('all')">Select all</button>
+    <button class="sidebar-btn" id="m-Jan" onclick="toggleMonth('Jan')">Jan</button>
+    <button class="sidebar-btn" id="m-Feb" onclick="toggleMonth('Feb')">Feb</button>
+    <button class="sidebar-btn" id="m-Mar" onclick="toggleMonth('Mar')">Mar</button>
+    <button class="sidebar-btn" id="m-Apr" onclick="toggleMonth('Apr')">Apr</button>
+    <button class="sidebar-btn" id="m-May" onclick="toggleMonth('May')">May</button>
+    <button class="sidebar-btn" id="m-Jun" onclick="toggleMonth('Jun')">Jun</button>
+    <button class="sidebar-btn" id="m-Jul" onclick="toggleMonth('Jul')">Jul</button>
+    <button class="sidebar-btn" id="m-Aug" onclick="toggleMonth('Aug')">Aug</button>
+    <button class="sidebar-btn" id="m-Sep" onclick="toggleMonth('Sep')">Sep</button>
+    <button class="sidebar-btn" id="m-Oct" onclick="toggleMonth('Oct')">Oct</button>
+    <button class="sidebar-btn" id="m-Nov" onclick="toggleMonth('Nov')">Nov</button>
+    <button class="sidebar-btn" id="m-Dec" onclick="toggleMonth('Dec')">Dec</button>
+  </div>
+</div>
+
+<div class="top-header">
+  <div class="header-year-panel">
+    <span class="label">Year</span>
+    <button class="toggle-btn select-all active" id="yr-all" onclick="toggleYear('all')">Select all</button>
+    <div id="yearButtonsContainer"></div>
+  </div>
+  <div class="header-title">(W) Environment Real-Time Monitoring</div>
+  <div class="header-shift-panel">
+    <span class="label">Shift</span>
+    <button class="toggle-btn select-all active" id="sh-all" onclick="toggleShift('all')">Select all</button>
+    <button class="toggle-btn" id="sh-w" onclick="toggleShift('W')">W</button>
+    <button class="toggle-btn" id="sh-y" onclick="toggleShift('Y')">Y</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Month Name</div>
+      <button class="month-trigger-btn" id="monthTriggerBtn" onclick="toggleMonthPopup(event)">
+        <span id="monthBtnLabel">Select all</span>
+        <span class="arrow">▼</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Kumi</div>
+      <div class="kumi-grid">
+        <button class="sidebar-btn kumi-full select-all-month active" onclick="toggleKumi('all')">Select all</button>
+        <button class="sidebar-btn" id="k-CAB3" onclick="toggleKumi('CAB3')">CAB3 &amp; Fr.</button>
+        <button class="sidebar-btn" id="k-RrFloor" onclick="toggleKumi('RrFloor')">Rr. Floor</button>
+        <button class="sidebar-btn" id="k-SideMenber" onclick="toggleKumi('SideMenber')">Side Menber</button>
+        <button class="sidebar-btn" id="k-DeckSlat" onclick="toggleKumi('DeckSlat')">Deck &amp; Slat</button>
+        <button class="sidebar-btn" id="k-Shell3" onclick="toggleKumi('Shell3')">Shell3</button>
+        <button class="sidebar-btn" id="k-Shell3RH" onclick="toggleKumi('Shell3RH')">Shell3 R.H.</button>
+        <button class="sidebar-btn" id="k-Logistics" onclick="toggleKumi('Logistics')">Logistics</button>
+        <button class="sidebar-btn" id="k-Inspection" onclick="toggleKumi('Inspection')">Inspection</button>
+      </div>
+    </div>
+    <div class="sidebar-bottom">
+      <a href="#" class="back-btn" onclick="goToForm(event)">กรอกข้อมูล</a>
+      <a href="#" class="back-btn" onclick="goToHistory(event)">ประวัติ</a>
+      <a id="backToMenuBtn" href="menu.html" class="back-btn">⬅ BACK TO MENU</a>
+      <button class="clear-btn" onclick="clearAllSelections()">Clear All Select</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="top-area">
+      <div class="chart-grid-3x3">
+        <div class="chart-card"><div class="chart-header">Waste</div><div class="chart-body"><svg class="bar-chart" id="chart1" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Contaminate</div><div class="chart-body"><svg class="bar-chart" id="chart2" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Nonmal</div><div class="chart-body"><svg class="bar-chart" id="chart3" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Water</div><div class="chart-body"><svg class="bar-chart" id="chart4" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Water Production</div><div class="chart-body"><svg class="bar-chart" id="chart5" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Water Non-Production</div><div class="chart-body"><svg class="bar-chart" id="chart6" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Co2 and Energy</div><div class="chart-body"><svg class="bar-chart" id="chart7" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Co2 and Energy Production</div><div class="chart-body"><svg class="bar-chart" id="chart8" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+        <div class="chart-card"><div class="chart-header">Co2 and Energy Non-Production</div><div class="chart-body"><svg class="bar-chart" id="chart9" width="300" height="150" viewBox="0 0 300 150"></svg></div></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <table class="data-table bottom-table">
+        <colgroup>
+          <col class="c-date"><col class="c-kumi"><col class="c-mainkpi">
+          <col class="c-subkpi"><col class="c-pkpi"><col class="c-time">
+          <col class="c-shift"><col class="c-mins"><col class="c-problem">
+          <col class="c-monitor"><col class="c-target"><col class="c-actual">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Date</th><th>Kumi</th><th>Main KPI</th>
+            <th>Sub KPI</th><th>Process KPI</th><th>ช่วงเวลา</th>
+            <th>Shift</th><th>Mins</th><th>Problem</th>
+            <th>Monitor</th><th>Target</th><th>Actual</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="12" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const CR_OK    = '#ff6eb4';
+const CR_NG    = '#d6605a';
+const CR_LINE  = '#7d9085';
+const CR_GRID  = '#f5d8e0';
+const CR_AXIS  = '#d47890';
+const CR_LABEL = '#c08090';
+const CR_EMPTY = '#e8b0c4';
+const CR_BAR   = '#ff6eb4';
+
+let selectedYears=['all'],selectedShifts=['all'],selectedMonths=['all'],selectedKumis=['all'];
+let BASE_URL = '';
+let allApiRecords=[],debounceTimer=null;
+
+(function(){
+  if (typeof APP !== 'undefined' && APP && typeof APP.initAppState === 'function'){
+    try { BASE_URL = APP.initAppState(); } catch(e) { BASE_URL = ''; }
+    window.goToMenu = function(event){ if(event) event.preventDefault(); APP.safeNavigate(APP.buildPageHref('menu')); };
+    window.goToForm = function(event){ if(event) event.preventDefault(); APP.safeNavigate(APP.buildPageHref('form')); };
+    window.goToHistory = function(event){ if(event) event.preventDefault(); APP.safeNavigate(APP.buildPageHref('history')); };
+  } else {
+    BASE_URL = '';
+    window.goToMenu = function(event){ if(event) event.preventDefault(); window.location.href = 'menu.html'; };
+    window.goToForm = function(event){ if(event) event.preventDefault(); window.location.href = 'form.html'; };
+    window.goToHistory = function(event){ if(event) event.preventDefault(); window.location.href = 'history.html'; };
+  }
+})();
+
+function parseCsvLine(line){
+  const values=[]; let cur=''; let inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){
+      if(inQuotes && line[i+1]==='"'){cur+='"'; i++;}
+      else{inQuotes=!inQuotes;}
+    }else if(ch===',' && !inQuotes){values.push(cur); cur='';}
+    else{cur+=ch;}
+  }
+  values.push(cur);
+  return values.map(v=>v.trim());
+}
+
+function parseCsv(text){
+  const rows=[];
+  const lines=text.split(/\r?\n/).map(l=>l.trimEnd());
+  if(!lines.length || !lines[0].trim()) return rows;
+  const headers=parseCsvLine(lines[0]);
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const values=parseCsvLine(lines[i]);
+    const obj={};
+    headers.forEach((header,idx)=>{obj[header]=values[idx]||'';});
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function normalizeApiRecord(r){
+  return {
+    kpi: String(r.kpi || r.KPI || '').trim(),
+    record_date: String(r.record_date || r.Problem_Date || '').trim(),
+    problem_date: String(r.Problem_Date || r.record_date || '').trim(),
+    kumi: r.kumi || r.Kumi || '',
+    main_kpi: r.main_kpi || r.Main_KPI || '',
+    sub_kpi: r.sub_kpi || r.Sub_KPI || '',
+    process_kpi: r.process_kpi || r.Process_KPI || '',
+    shift: r.shift || r.Problem_Shift || '',
+    target: Number(r.target != null ? r.target : (r.Problem_Target != null ? r.Problem_Target : '')) || 0,
+    actual: Number(r.actual != null ? r.actual : (r.Problem_Actual != null ? r.Problem_Actual : '')) || 0,
+    problem_detail: r.Detail || r.problem_detail || '',
+    problem_time: r.Problem_Time || r.problem_time || '',
+    problem_hour: r.Problem_Hour || r.problem_hour || '',
+    unit_problem: r.Unit_Problem || r.QTY_Unit || r.unit_problem || ''
+  };
+}
+
+async function fetchMonitoringData(params){
+  // Prefer server-side API (Apps Script) which can read protected Sheets.
+  // Fallback to local API and then direct CSV fetch.
+  params = params || {};
+  if (typeof BASE_URL === 'string' && BASE_URL) {
+    try {
+      const resp = await fetch(BASE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getMonitoringData', args: [params] })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && Array.isArray(json.records)) {
+          const records = json.records.map(normalizeApiRecord);
+          return { records, pages: json.pages || 1 };
+        }
+      }
+      throw new Error('Server returned ' + resp.status);
+    } catch (err) {
+      console.warn('Apps Script load failed:', err.message);
+    }
+  }
+
+  async function fetchLocalJson() {
+    try {
+      const resp = await fetch('production-data.json', { cache: 'no-store' });
+      if (!resp.ok) return [];
+      const json = await resp.json();
+      return Array.isArray(json) ? json : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  if (window.location.host) {
+    try {
+      const allRec = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const query = new URLSearchParams(Object.assign({ page, per_page: 200, sort_col: params.sort_col || 'record_date', sort_dir: params.sort_dir || 'desc' }, params));
+        const url = '/api/records?' + query.toString();
+        const resp = await fetch(url, { method: 'GET' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const json = await resp.json();
+        const records = Array.isArray(json.records) ? json.records : [];
+        allRec.push(...records.map(normalizeApiRecord));
+        totalPages = json.pages || 1;
+        page += 1;
+      } while (page <= totalPages);
+      if (allRec.length) {
+        return { records: allRec, pages: totalPages };
+      }
+      throw new Error('Local API returned no records');
+    } catch (err) {
+      console.warn('Local API /api/records load failed, falling back to local JSON or sheet CSV:', err.message);
+      const localJson = await fetchLocalJson();
+      if (localJson.length) {
+        return { records: localJson.map(normalizeApiRecord), pages: 1 };
+      }
+    }
+  }
+
+  if (window.location.protocol === 'file:') {
+    const localJson = await fetchLocalJson();
+    if (localJson.length) {
+      return { records: localJson.map(normalizeApiRecord), pages: 1 };
+    }
+  }
+
+  // CSV fallback (requires the spreadsheet to be shareable/public)
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/1obXzR3E_h4O8a0vcbBV4tjo4hNvdRS2Cdq0PRKQmP6E/export?format=csv&gid=2045278866';
+  const response = await fetch(sheetUrl, { cache: 'no-store' });
+  if (!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลจาก Google Sheets ได้ (CSV)');
+  const csv = await response.text();
+  const rows = parseCsv(csv);
+  const targetKpi = 'environment';
+  const records = rows.filter(r => (r.KPI || '').trim().toLowerCase() === targetKpi).map(normalizeApiRecord);
+  return { records, pages: 1 };
+}
+
+function toggleMonthPopup(e){
+  e.stopPropagation();
+  const btn=document.getElementById('monthTriggerBtn'),popup=document.getElementById('monthPopup'),overlay=document.getElementById('monthOverlay');
+  if(popup.classList.contains('visible')){closeMonthPopup();return;}
+  const rect=btn.getBoundingClientRect();
+  popup.style.left=rect.left+'px';popup.style.top=(rect.bottom+4)+'px';
+  popup.classList.add('visible');overlay.classList.add('visible');btn.classList.add('open');
+}
+function closeMonthPopup(){
+  document.getElementById('monthPopup').classList.remove('visible');
+  document.getElementById('monthOverlay').classList.remove('visible');
+  document.getElementById('monthTriggerBtn').classList.remove('open');
+}
+function updateMonthBtnLabel(){
+  const btn=document.getElementById('monthTriggerBtn'),lbl=document.getElementById('monthBtnLabel');
+  if(selectedMonths.includes('all')||!selectedMonths.length){lbl.textContent='Select all';btn.classList.remove('has-selection');}
+  else if(selectedMonths.length===1){lbl.textContent=selectedMonths[0];btn.classList.add('has-selection');}
+  else{lbl.textContent=selectedMonths.length+' months';btn.classList.add('has-selection');}
+}
+
+async function loadAllRecords(){
+  document.getElementById('tableBody').innerHTML='<tr><td colspan="12" class="table-loading">⏳ กำลังโหลดข้อมูล…</td></tr>';
+  try{
+    const params={page:1,per_page:200,sort_col:'record_date',sort_dir:'desc'};
+    const data = await fetchMonitoringData(params);
+    allApiRecords = (data.records || []).map(normalizeApiRecord);
+    applyFiltersAndRender();
+  }catch(err){
+    document.getElementById('tableBody').innerHTML=`<tr><td colspan="12" class="table-loading">❌ โหลดล้มเหลว: ${err.message}</td></tr>`;
+    initEmptyCharts();
+  }
+}
+
+window.addEventListener('storage', function(e){
+  if (e.key === 'recordSavedAt') {
+    loadAllRecords();
+  }
+});
+
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') {
+    loadAllRecords();
+  }
+});
+
+function applyFiltersAndRender(){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const kumiKeyMap={CAB3:'CAB3',RrFloor:'Rr.',SideMenber:'Side',DeckSlat:'Deck',Shell3:'Shell3',Shell3RH:'Roller',Logistics:'Logistic',Inspection:'Inspect'};
+  const filtered=allApiRecords.filter(r=>{
+    if((r.kpi||'').trim().toLowerCase()!=='environment')return false;
+    const dp=(r.record_date||'').split('-');
+    const ry=dp[0]||'',rm=MS[parseInt(dp[1]||'0',10)-1]||'';
+    if(!selectedYears.includes('all')&&!selectedYears.includes(ry))return false;
+    if(!selectedMonths.includes('all')&&!selectedMonths.includes(rm))return false;
+    if(!selectedShifts.includes('all')){
+      const sv=(r.shift||'').toLowerCase();
+      if(!selectedShifts.some(s=>(s==='W'&&sv.includes('white'))||(s==='Y'&&sv.includes('yellow'))))return false;
+    }
+    if(!selectedKumis.includes('all')){
+      if(!selectedKumis.some(k=>r.kumi&&r.kumi.toLowerCase().includes((kumiKeyMap[k]||k).toLowerCase())))return false;
+    }
+    return true;
+  });
+  const rows=filtered.map(apiToRow);
+  renderTable(rows);
+  buildCharts(rows);
+}
+
+function apiToRow(r){
+  let timeRange=r.problem_time||'-';
+  if(r.problem_time&&r.problem_time!=='-'&&r.problem_time.includes(':')){
+    const[h,m]=r.problem_time.split(':').map(Number);
+    timeRange=`${r.problem_time}-${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  return{
+    kpi: r.kpi || '',
+    record_date: r.problem_date||'',
+    kumi: r.kumi||'',
+    main_kpi: r.main_kpi||'',
+    sub_kpi: r.sub_kpi||'',
+    process_kpi: r.process_kpi||'',
+    time_range: timeRange,
+    shift: r.shift||'',
+    mins: r.problem_hour||'0',
+    problem: r.problem_detail||'',
+    kpi_monitor: r.shift||'',
+    target: r.target||'',
+    actual: r.actual||'',
+    unit: r.unit_problem||''
+  };
+}
+
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function shiftSpan(s){return`<span class="${s&&s.toLowerCase().includes('white')?'shift-white':'shift-yellow'}">${esc(s)}</span>`;}
+function actualColor(a,t){const av=parseFloat(a),tv=parseFloat(t);if(isNaN(av)||isNaN(tv)||tv===0)return'inherit';return av>=tv?CR_OK:CR_NG;}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="table-loading">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>';
+    return;
+  } 
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td class="td-left">${esc(r.record_date)}</td>
+    <td class="td-left" style="font-weight:600">${esc(r.kumi)}</td>
+    <td class="td-left">${esc(r.main_kpi)}</td>
+    <td class="td-left" style="color:var(--pk-text-lt)">${esc(r.sub_kpi)}</td>
+    <td class="td-left" style="color:var(--pk-text-lt)">${esc(r.process_kpi)}</td>
+    <td class="td-left" style="font-family:monospace;font-size:9px">${esc(r.time_range)}</td>
+    <td>${shiftSpan(r.shift)}</td>
+    <td>${esc(r.mins)}</td>
+    <td class="td-left">${esc(r.problem)}</td>
+    <td>${esc(r.kpi_monitor)}</td>
+    <td>${esc(r.target)}${r.unit?' '+esc(r.unit):''}</td>
+    <td style="color:${actualColor(r.actual,r.target)};font-weight:700">${esc(r.actual)}${r.unit?' '+esc(r.unit):''}</td>
+  </tr>`).join('');
+  const unitRow = rows.find(r => r.unit);
+}
+
+const CHART_FILTERS={
+  chart1:r=>(r.main_kpi||'').toLowerCase().includes('waste'),
+  chart2:r=>(r.process_kpi||'').toLowerCase().includes('contaminate'),
+  chart3:r=>(r.process_kpi||'').toLowerCase().includes('nonmal'),
+  chart4:r=>(r.main_kpi||'').toLowerCase().includes('water'),
+  chart5:r=>{const m=(r.main_kpi||'').toLowerCase(),s=(r.sub_kpi||'').toLowerCase();return m.includes('water')&&s.includes('production')&&!s.includes('non');},
+  chart6:r=>{const m=(r.main_kpi||'').toLowerCase(),s=(r.sub_kpi||'').toLowerCase();return m.includes('water')&&s.includes('non');},
+  chart7:r=>{const m=(r.main_kpi||'').toLowerCase();return m.includes('energy')||m.includes('co2');},
+  chart8:r=>{const m=(r.main_kpi||'').toLowerCase(),s=(r.sub_kpi||'').toLowerCase();return (m.includes('energy')||m.includes('co2'))&&s.includes('production')&&!s.includes('non');},
+  chart9:r=>{const m=(r.main_kpi||'').toLowerCase(),s=(r.sub_kpi||'').toLowerCase();return (m.includes('energy')||m.includes('co2'))&&s.includes('non');}
+};
+
+function monthLabel(ym){const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const p=ym.split('-');return`${MS[parseInt(p[1],10)-1]||'?'}-${(p[0]||'').slice(2)}`;}
+function fmtNum(n){if(!isFinite(n))return'0';return String(Math.round(n*100)/100);}
+
+function buildChartDataset(records){
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const grouped=new Map();
+  records.forEach(function(r){
+    const key=String(r.record_date||'').slice(0,7);
+    if(!key) return;
+    if(!grouped.has(key)) grouped.set(key,{label:'',actual:0,target:null});
+    const item=grouped.get(key);
+    const actual=Number(r.actual);
+    const target=Number(r.target);
+    if(!isNaN(actual)) item.actual += actual;
+    if(!isNaN(target) && item.target===null) item.target = target;
+    if(!item.label){
+      const parts=key.split('-');
+      item.label = (MS[Number(parts[1],10)-1]||'?') + ' ' + String(parts[0]||'').slice(2);
+    }
+  });
+  return [...grouped.entries()].sort(function(a,b){return a[0].localeCompare(b[0]);}).map(function(e){return e[1];});
+}
+
+function renderEmptySvg(svgId){
+  const svg=document.getElementById(svgId);
+  if(!svg) return;
+  svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#b3bac6">No data</text>';
+}
+
+function renderEnvChart(svgId, records, color){
+  const data = buildChartDataset(records);
+  if(!data.length){
+    renderEmptySvg(svgId);
+    return;
+  }
+  if(typeof drawChart === 'function'){
+    drawChart(svgId, records, color);
+    return;
+  }
+  renderBarChart(svgId, data.map(function(item){ return { label: item.label, val: item.actual, target: item.target }; }));
+}
+
+function buildCharts(rows){
+  const filteredWaste = rows.filter(function(r){ return (r.kpi||'').toLowerCase() === 'environment' && (r.main_kpi||'').toLowerCase().includes('waste'); });
+  renderEnvChart('chart1', filteredWaste, '#ff6eb4');
+
+  const filteredContaminate = rows.filter(function(r){ return (r.sub_kpi||'').toLowerCase().includes('contaminate'); });
+  renderEnvChart('chart2', filteredContaminate, '#ff6eb4');
+
+  const filteredNormal = rows.filter(function(r){ return (r.sub_kpi||'').toLowerCase().includes('normal'); });
+  renderEnvChart('chart3', filteredNormal, '#ff6eb4');
+
+  const filteredWater = rows.filter(function(r){ return (r.main_kpi||'').toLowerCase().includes('water'); });
+  renderEnvChart('chart4', filteredWater, '#ff6eb4');
+
+  const filteredProduction = rows.filter(function(r){
+    const m=(r.main_kpi||'').toLowerCase();
+    const s=(r.sub_kpi||'').toLowerCase();
+    return m.includes('water') && s.includes('production') && !s.includes('non');
+  });
+  renderEnvChart('chart5', filteredProduction, '#ff6eb4');
+
+  const filteredNonProduction = rows.filter(function(r){
+    const m=(r.main_kpi||'').toLowerCase();
+    const s=(r.sub_kpi||'').toLowerCase();
+    return m.includes('water') && s.includes('non');
+  });
+  renderEnvChart('chart6', filteredNonProduction, '#ff6eb4');
+
+  const filteredEnergy = rows.filter(function(r){ return (r.main_kpi||'').toLowerCase().includes('energy'); });
+  renderEnvChart('chart7', filteredEnergy, '#ff6eb4');
+
+  const filteredEnergyProduction = rows.filter(function(r){
+    const m=(r.main_kpi||'').toLowerCase();
+    const s=(r.sub_kpi||'').toLowerCase();
+    return (m.includes('energy')||m.includes('co2')) && s.includes('production') && !s.includes('non');
+  });
+  renderEnvChart('chart8', filteredEnergyProduction, '#ff6eb4');
+
+  const filteredEnergyNonProduction = rows.filter(function(r){
+    const m=(r.main_kpi||'').toLowerCase();
+    const s=(r.sub_kpi||'').toLowerCase();
+    return (m.includes('energy')||m.includes('co2')) && s.includes('non');
+  });
+  renderEnvChart('chart9', filteredEnergyNonProduction, '#ff6eb4');
+}
+
+function renderTargetActualChart(svgId,labels,actuals,targetLine){
+  const svg=document.getElementById(svgId);if(!svg)return;
+  const W=300,H=150,pL=36,pR=6,pT=18,pB=42,cW=W-pL-pR,cH=H-pT-pB;
+  const mv=Math.max(...actuals,targetLine,1)*1.15;
+  const n=labels.length,gW=cW/Math.max(n,1),bW=Math.max(4,gW*.55);
+  let h='';
+  for(let i=0;i<=4;i++){
+    const y=pT+cH-(i/4)*cH;
+    h+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="${CR_GRID}" stroke-width="1"/>`;
+    h+=`<text x="${pL-3}" y="${y+4}" text-anchor="end" font-size="10" font-weight="600" fill="${CR_LABEL}">${Math.round(mv*i/4)}</text>`;
+  }
+  labels.forEach((lbl,i)=>{
+    const cx=pL+i*gW+gW/2,bx=cx-bW/2;
+    const aV=actuals[i]||0,aH=Math.max(2,(aV/mv)*cH),aY=pT+cH-aH;
+    const color=aV>=targetLine?CR_OK:CR_NG;
+    h+=`<rect x="${bx}" y="${aY}" width="${bW}" height="${aH}" rx="2" fill="${color}" opacity="0.85" onmouseenter="showTip(event,'${lbl} Actual: ${aV}')" onmouseleave="hideTip()"/>`;
+    h+=`<text x="${cx}" y="${aY-4}" text-anchor="middle" font-size="11" font-weight="700" fill="${color}">${aV}</text>`;
+    h+=`<text x="${cx}" y="${H-pB+14}" text-anchor="middle" font-size="10" font-weight="600" fill="${CR_LABEL}" transform="rotate(-30,${cx},${H-pB+14})">${lbl}</text>`;
+  });
+  const ty=pT+cH-(targetLine/mv)*cH;
+  h+=`<line x1="${pL}" y1="${ty}" x2="${W-pR}" y2="${ty}" stroke="${CR_LINE}" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+  h+=`<text x="${W-pR}" y="${ty-4}" text-anchor="end" font-size="10" font-weight="800" fill="${CR_LINE}">▸ ${fmtNum(targetLine)}</text>`;
+  h+=`<line x1="${pL}" y1="${pT+cH}" x2="${W-pR}" y2="${pT+cH}" stroke="${CR_AXIS}" stroke-width="1.5"/>`;
+  h+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+cH}" stroke="${CR_AXIS}" stroke-width="1.5"/>`;
+  svg.innerHTML=h;
+}
+
+function renderBarChart(svgId,data){
+  const svg=document.getElementById(svgId);if(!svg)return;
+  const W=300,H=150,pL=36,pR=6,pT=14,pB=42,cW=W-pL-pR,cH=H-pT-pB;
+  const mv=Math.max(...data.map(d=>d.val || 0),1),bW=Math.max(3,cW/data.length-4);
+  let h='';
+  for(let i=0;i<=4;i++){const y=pT+cH-(i/4)*cH;h+=`<line x1="${pL}" y1="${y}" x2="${W-pR}" y2="${y}" stroke="${CR_GRID}" stroke-width="1"/><text x="${pL-3}" y="${y+4}" text-anchor="end" font-size="10" font-weight="600" fill="${CR_EMPTY}">${Math.round(mv*i/4)}</text>`;}
+  data.forEach((d,i)=>{
+    const x=pL+i*(cW/data.length)+(cW/data.length-bW)/2;
+    const val = Number(d.val)||0;
+    const bh=Math.max(2,(val/mv)*cH),y=pT+cH-bh;
+    // choose color: if target provided, color by OK/NG; otherwise use default bar color
+    const target = d.target!=null?Number(d.target):null;
+    const fill = (target!==null && !isNaN(target)) ? (val>=target?CR_OK:CR_NG) : CR_BAR;
+    const opacity = (target!==null && !isNaN(target)) ? 0.88 : 0.6;
+    h+=`<rect x="${x}" y="${y}" width="${bW}" height="${bh}" rx="2" fill="${fill}" opacity="${opacity}" onmouseenter="showTip(event,'${d.label||''} ${val}')" onmouseleave="hideTip()"/>`;
+    if(val>0) h+=`<text x="${x+bW/2}" y="${y-6}" text-anchor="middle" font-size="11" font-weight="700" fill="${fill}">${fmtNum(val)}</text>`;
+  });
+  h+=`<line x1="${pL}" y1="${pT+cH}" x2="${W-pR}" y2="${pT+cH}" stroke="${CR_AXIS}" stroke-width="1.5"/>`;
+  h+=`<line x1="${pL}" y1="${pT}" x2="${pL}" y2="${pT+cH}" stroke="${CR_AXIS}" stroke-width="1.5"/>`;
+  svg.innerHTML=h;
+}
+
+function showTip(e,text){const t=document.getElementById('tooltip');t.textContent=text;t.style.display='block';t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-28)+'px';}
+function hideTip(){document.getElementById('tooltip').style.display='none';}
+
+// Generate year buttons dynamically
+(function() {
+  var container = document.getElementById('yearButtonsContainer');
+  if (!container) return;
+  var currentYear = new Date().getFullYear();
+  var startYear = 2024;
+  var endYear = currentYear + 1;
+  for (var y = startYear; y <= endYear; y++) {
+    var btn = document.createElement('button');
+    btn.className = 'toggle-btn';
+    btn.id = 'yr-' + y;
+    btn.textContent = y.toString();
+    btn.onclick = function(year) { return function() { toggleYear(year.toString()); }; }(y);
+    container.appendChild(btn);
+  }
+})();
+
+function toggleYear(yr){
+  if(yr==='all'){selectedYears=['all'];var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,false));setA('yr-all',true);}
+  else{selectedYears=selectedYears.filter(v=>v!=='all');const idx=selectedYears.indexOf(yr);idx>=0?selectedYears.splice(idx,1):selectedYears.push(yr);setA('yr-all',false);var btns=document.querySelectorAll('[id^="yr-"]:not([id="yr-all"])');btns.forEach(b=>setA(b.id,selectedYears.includes(b.id.substring(3))));if(!selectedYears.length){selectedYears=['all'];setA('yr-all',true);}}
+  debouncedRender();
+}
+function toggleShift(sh){
+  if(sh==='all'){selectedShifts=['all'];setA('sh-w',false);setA('sh-y',false);setA('sh-all',true);}
+  else{selectedShifts=selectedShifts.filter(v=>v!=='all');const idx=selectedShifts.indexOf(sh);idx>=0?selectedShifts.splice(idx,1):selectedShifts.push(sh);setA('sh-all',false);['W','Y'].forEach(s=>setA('sh-'+s,selectedShifts.includes(s)));if(!selectedShifts.length){selectedShifts=['all'];setA('sh-all',true);}}
+  debouncedRender();
+}
+function toggleMonth(m){
+  const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(m==='all'){selectedMonths=['all'];ms.forEach(mn=>setA('m-'+mn,false));document.querySelector('#monthPopup .select-all-month').classList.add('active');}
+  else{selectedMonths=selectedMonths.filter(v=>v!=='all');document.querySelector('#monthPopup .select-all-month').classList.remove('active');const idx=selectedMonths.indexOf(m);idx>=0?selectedMonths.splice(idx,1):selectedMonths.push(m);ms.forEach(mn=>setA('m-'+mn,selectedMonths.includes(mn)));if(!selectedMonths.length){selectedMonths=['all'];document.querySelector('#monthPopup .select-all-month').classList.add('active');}}
+  updateMonthBtnLabel();debouncedRender();
+}
+function toggleKumi(k){
+  const ks=['CAB3','RrFloor','SideMenber','DeckSlat','Shell3','Shell3RH','Logistics','Inspection'];
+  if(k==='all'){selectedKumis=['all'];ks.forEach(ki=>setA('k-'+ki,false));document.querySelector('.kumi-grid .select-all-month')?.classList.add('active');}
+  else{selectedKumis=selectedKumis.filter(v=>v!=='all');const idx=selectedKumis.indexOf(k);idx>=0?selectedKumis.splice(idx,1):selectedKumis.push(k);ks.forEach(ki=>setA('k-'+ki,selectedKumis.includes(ki)));if(!selectedKumis.length)selectedKumis=['all'];}
+  debouncedRender();
+}
+function clearAllSelections(){
+  selectedYears=['all'];selectedShifts=['all'];selectedMonths=['all'];selectedKumis=['all'];
+  ['yr-all','sh-all'].forEach(id=>setA(id,true));
+  ['yr-2024','yr-2025','yr-2026','sh-w','sh-y'].forEach(id=>setA(id,false));
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.select-all-month').forEach(b=>b.classList.add('active'));
+  updateMonthBtnLabel();debouncedRender();
+}
+function setA(id,on){const el=document.getElementById(id);if(el)on?el.classList.add('active'):el.classList.remove('active');}
+function debouncedRender(){clearTimeout(debounceTimer);debounceTimer=setTimeout(applyFiltersAndRender,80);}
+function initEmptyCharts(){for(let i=1;i<=9;i++)renderBarChart('chart'+i,[{label:'-',val:0}]);}
+
+initEmptyCharts();
+loadAllRecords();
+
+// data source badge + SSE realtime
+function startRealtime(){ if(typeof EventSource==='undefined') return; try{ var es=new EventSource('/api/stream'); es.onmessage=function(ev){ try{ var payload=JSON.parse(ev.data); if(payload && payload.records){ allApiRecords=payload.records; applyFiltersAndRender(); } }catch(err){console.error('stream parse',err);} }; es.onerror=function(){ setTimeout(startRealtime,5000); }; }catch(e){console.error('SSE failed',e);} }
+startRealtime();
+</script>
+<script>
+</script>
+<script>
+</script>
+</body>
+</html>

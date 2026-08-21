@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+
+<html class="" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manufacturing KPI Monitor</title>
+<?!= include('compat'); ?>
+<?!= include('app'); ?>
+<script>
+  if (typeof window.APP === 'undefined' && window.location.protocol === 'file:') {
+    document.write('<script src="local-testing/compat.js"><\/script>');
+    document.write('<script src="local-testing/app.js"><\/script>');
+  }
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4f7b71",
+                        "background-light": "#ffffff",
+                        "background-dark": "#edf6f1",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }</script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #230f0f;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b2020;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #800000;
+        }
+    </style>
+</head>
+<body class="bg-white text-slate-900 min-h-screen font-display">
+<!-- Top Navigation Bar -->
+<header class="border-b border-primary/20 bg-background-light dark:bg-background-dark sticky top-0 z-50">
+    <div class="max-w-[1440px] mx-auto px-6 py-4 flex flex-col gap-4 md:h-16 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-col md:flex-row md:items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary p-1.5 rounded-lg text-white">
+                    <span class="material-symbols-outlined text-2xl">factory</span>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight text-slate-900">GL Board</h1>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2">
+                <!-- Period Filter -->
+                <div class="flex flex-wrap p-1 bg-slate-100 rounded-lg scale-90 origin-left gap-1">
+                    <button class="px-3 py-1 text-xs font-medium rounded-md bg-white dark:bg-primary text-slate-900 dark:text-white shadow-sm">Month</button>
+                    <button class="px-3 py-1 text-xs font-medium text-slate-500 hover:text-primary">Week</button>
+                    <button class="px-3 py-1 text-xs font-medium text-slate-500 hover:text-primary">All</button>
+                </div>
+                <!-- Shift Filter -->
+                <div class="flex flex-wrap p-1 bg-slate-100 rounded-lg scale-90 origin-left gap-1">
+                    <label class="flex items-center cursor-pointer">
+                        <input class="hidden peer" name="header_shift" type="radio"/>
+                        <span class="px-3 py-1 text-xs font-medium rounded-md peer-checked:bg-white dark:peer-checked:bg-primary text-slate-500 peer-checked:text-slate-900 dark:peer-checked:text-white">White</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer">
+                        <input checked="" class="hidden peer" name="header_shift" type="radio"/>
+                        <span class="px-3 py-1 text-xs font-medium rounded-md peer-checked:bg-white dark:peer-checked:bg-primary text-slate-500 peer-checked:text-slate-900 dark:peer-checked:text-white">Yellow</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer">
+                        <input class="hidden peer" name="header_shift" type="radio"/>
+                        <span class="px-3 py-1 text-xs font-medium rounded-md peer-checked:bg-white dark:peer-checked:bg-primary text-slate-500 peer-checked:text-slate-900 dark:peer-checked:text-white">All</span>
+                    </label>
+                </div>
+                <!-- Kumi Select -->
+                <select class="bg-slate-100 border-none rounded-lg text-xs font-medium px-3 py-1.5 focus:ring-1 focus:ring-primary text-slate-900 h-8 w-full sm:w-auto">
+                    <option>All Kumi Units</option>
+                    <option>Assembly Kumi A</option>
+                    <option>Welding Kumi B</option>
+                    <option>Paint Kumi C</option>
+                </select>
+                <button class="bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm w-full sm:w-auto">
+                    <span class="material-symbols-outlined text-sm">refresh</span>
+                    Update
+                </button>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 justify-end">
+            <a class="bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm w-full sm:w-auto text-center" href="#" onclick="goToForm(event)">กรอกข้อมูล</a>
+            <a class="border border-primary text-primary hover:bg-primary hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all w-full sm:w-auto text-center" href="#" onclick="goToHistory(event)">ประวัติ</a>
+            <button class="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                <span class="material-symbols-outlined">notifications</span>
+            </button>
+            <div class="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">AD</div>
+        </div>
+    </div>
+</header>
+<main class="max-w-[1440px] mx-auto p-6 space-y-6">
+<!-- Filters Section -->
+<!-- KPI Summary Cards Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Card 1 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg text-red-600 dark:text-red-400">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<span class="text-xs font-medium px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full">+12.5%</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Problem Hr</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 40%, #b91c1c 40% 70%, #f87171 70% 100%)"></div><div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Morning (40%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-700"></div><span class="text-[10px] text-slate-500">Afternoon (30%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-400"></div><span class="text-[10px] text-slate-500">Night (30%)</span></div></div></div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400">
+<span class="material-symbols-outlined">timer</span>
+</div>
+<span class="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-primary/20 text-slate-600 dark:text-slate-400 rounded-full">Stable</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Problem Time</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 60%, #f59e0b 60% 100%)"></div><div class="mt-4 flex flex-col gap-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Short Duration (60%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-amber-500"></div><span class="text-[10px] text-slate-500">Long Duration (40%)</span></div></div></div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">group</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Kumi Active</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 75%, #cbd5e1 75% 100%)"></div><div class="mt-4 flex flex-col gap-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Active (75%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-slate-300"></div><span class="text-[10px] text-slate-500">Inactive (25%)</span></div></div></div>
+</div>
+<!-- Card 4 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-slate-100 dark:bg-primary/10 rounded-lg text-slate-600 dark:text-primary">
+<span class="material-symbols-outlined">hub</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Sub Kumi</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 50%, #4b5563 50% 80%, #94a3b8 80% 100%)"></div><div class="mt-4 grid grid-cols-2 gap-x-2 gap-y-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Zone A (50%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-slate-600"></div><span class="text-[10px] text-slate-500">Zone B (30%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-slate-400"></div><span class="text-[10px] text-slate-500">Zone C (20%)</span></div></div></div>
+</div>
+<!-- Card 5 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
+<span class="material-symbols-outlined">category</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">KPI Type</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#f59e0b 0% 40%, #3b82f6 40% 70%, #ef4444 70% 100%)"></div><div class="mt-4 grid grid-cols-2 gap-x-2 gap-y-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-amber-500"></div><span class="text-[10px] text-slate-500">Mechanical</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-blue-500"></div><span class="text-[10px] text-slate-500">Material</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-500"></div><span class="text-[10px] text-slate-500">Power</span></div></div></div>
+</div>
+<!-- Card 6 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors border-l-4 border-l-primary">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">trending_up</span>
+</div>
+<span class="text-xs font-medium px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full">Target Met</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Main KPI</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#10b981 0% 94.8%, #ef4444 94.8% 100%)"></div><div class="mt-4 flex flex-col gap-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-emerald-500"></div><span class="text-[10px] text-slate-500">Target Met (94.8%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-500"></div><span class="text-[10px] text-slate-500">Missed (5.2%)</span></div></div></div>
+</div>
+<!-- Card 7 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-slate-100 dark:bg-primary/10 rounded-lg text-slate-600 dark:text-primary">
+<span class="material-symbols-outlined">equalizer</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Sub KPI</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 88.2%, #cbd5e1 88.2% 100%)"></div><div class="mt-4 flex flex-col gap-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Performance (88.2%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-slate-300"></div><span class="text-[10px] text-slate-500">Gap (11.8%)</span></div></div></div>
+</div>
+<!-- Card 8 -->
+<div class="bg-white border border-slate-200 rounded-xl p-5 hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-slate-100 dark:bg-primary/10 rounded-lg text-slate-600 dark:text-primary">
+<span class="material-symbols-outlined">settings_suggest</span>
+</div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Process KPI</p>
+<div class="flex flex-col items-center mt-2"><div class="w-24 h-24 rounded-full" style="background: conic-gradient(#800000 0% 91.5%, #f87171 91.5% 100%)"></div><div class="mt-4 flex flex-col gap-1 w-full"><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="text-[10px] text-slate-500">Compliance (91.5%)</span></div><div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-400"></div><span class="text-[10px] text-slate-500">Failure (8.5%)</span></div></div></div>
+</div>
+</section>
+<!-- Problem Detail Table Section -->
+<section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+<div class="p-6 border-b border-slate-200 flex items-center justify-between bg-white dark:bg-background-dark/50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">assignment_late</span>
+<h2 class="text-lg font-bold text-slate-900 dark:text-white">Problem Detail</h2>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-primary/10 rounded-lg hover:bg-slate-200 dark:hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">download</span> Export CSV
+                    </button>
+<button class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-primary/10 rounded-lg hover:bg-slate-200 dark:hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span> Filter Table
+                    </button>
+</div>
+</div>
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full min-w-[900px] text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-primary/10 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">Problem Time / Hr</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">Kumi / Sub Kumi</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">KPI Type</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">Main KPI Impact</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">Sub KPI Impact</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20">Process KPI</th>
+<th class="px-6 py-4 border-b border-slate-200 dark:border-primary/20 text-center">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-primary/10 text-sm">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-primary/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900 dark:text-slate-100">08:45 AM</span>
+<span class="text-xs text-red-500">1.2 hrs downtime</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-medium">Assembly A</span>
+<span class="text-xs text-slate-500 dark:text-slate-400">Unit-04 / Line 2</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded uppercase">Mechanical</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-16 bg-slate-200 dark:bg-primary/20 h-1.5 rounded-full overflow-hidden">
+<div class="bg-red-500 h-full" style="width: 75%"></div>
+</div>
+<span class="font-medium">-15%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Yield Loss</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Sensor Fail</td>
+<td class="px-6 py-4 text-center">
+<button class="bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all">View Detail</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-primary/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900 dark:text-slate-100">10:12 AM</span>
+<span class="text-xs text-amber-500">0.5 hrs delay</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-medium">Welding B</span>
+<span class="text-xs text-slate-500 dark:text-slate-400">Unit-12 / Spot</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded uppercase">Material</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-16 bg-slate-200 dark:bg-primary/20 h-1.5 rounded-full overflow-hidden">
+<div class="bg-amber-500 h-full" style="width: 30%"></div>
+</div>
+<span class="font-medium">-4%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Quality Index</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Supply Chain</td>
+<td class="px-6 py-4 text-center">
+<button class="bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all">View Detail</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-primary/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900 dark:text-slate-100">01:30 PM</span>
+<span class="text-xs text-red-500">2.1 hrs stopped</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-medium">Paint C</span>
+<span class="text-xs text-slate-500 dark:text-slate-400">Booster / Line 1</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold rounded uppercase">Power Outage</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-16 bg-slate-200 dark:bg-primary/20 h-1.5 rounded-full overflow-hidden">
+<div class="bg-red-600 h-full" style="width: 90%"></div>
+</div>
+<span class="font-medium">-22%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Utility Error</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">HVAC Fail</td>
+<td class="px-6 py-4 text-center">
+<button class="bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all">View Detail</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-primary/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900 dark:text-slate-100">03:15 PM</span>
+<span class="text-xs text-amber-500">0.2 hrs warning</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-medium">Assembly A</span>
+<span class="text-xs text-slate-500 dark:text-slate-400">Unit-09 / Final</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-slate-100 dark:bg-primary/20 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded uppercase">Minor Adjustment</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-16 bg-slate-200 dark:bg-primary/20 h-1.5 rounded-full overflow-hidden">
+<div class="bg-amber-400 h-full" style="width: 15%"></div>
+</div>
+<span class="font-medium">-2%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Calibration</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">Operator Check</td>
+<td class="px-6 py-4 text-center">
+<button class="bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all">View Detail</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-primary/5 border-t border-slate-200 flex items-center justify-between">
+<p class="text-xs text-slate-500 dark:text-slate-400">Showing 4 of 24 problem entries detected this period.</p>
+<div class="flex gap-1">
+<button class="px-2 py-1 bg-white dark:bg-background-dark border border-slate-200 rounded text-xs">Prev</button>
+<button class="px-2 py-1 bg-primary text-white rounded text-xs font-bold">1</button>
+<button class="px-2 py-1 bg-white dark:bg-background-dark border border-slate-200 rounded text-xs">2</button>
+<button class="px-2 py-1 bg-white dark:bg-background-dark border border-slate-200 rounded text-xs">Next</button>
+</div>
+</div>
+</section>
+</main>
+<footer class="max-w-[1440px] mx-auto px-6 py-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="text-sm text-slate-500 dark:text-slate-400">
+            © 2026 Toyota BanPho (W) shop Systems. All rights reserved.
+        </div>
+<div class="flex items-center gap-6">
+<a class="text-sm text-slate-500 hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="text-sm text-slate-500 hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="text-sm text-slate-500 hover:text-primary transition-colors" href="#">Support Desk</a>
+</div>
+</footer>
+<script>
+    (function(){
+        const BASE_URL = APP.initAppState();
+        function goToMenu(event){
+            if (event) event.preventDefault();
+            APP.safeNavigate(APP.buildPageHref('menu'));
+        }
+        function goToForm(event){
+            if (event) event.preventDefault();
+            APP.safeNavigate(APP.buildPageHref('form'));
+        }
+        function goToHistory(event){
+            if (event) event.preventDefault();
+            APP.safeNavigate(APP.buildPageHref('history'));
+        }
+        if (location.pathname.endsWith('/menu.html') || location.pathname.endsWith('/login.html')) return;
+        if (document.getElementById('backToMenuBtn')) return;
+        var btn=document.createElement('a');
+            btn.id='backToMenuBtn';
+            btn.href=APP.buildPageHref('menu');
+            btn.textContent='⬅ Back to Menu';
+            btn.setAttribute('role','button');
+            btn.style='position:fixed;left:12px;bottom:12px;padding:8px 12px;background:#800000;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.18)';
+            btn.addEventListener('click', goToMenu);
+        document.body.appendChild(btn);
+    })();
+</script>
+</body></html>
