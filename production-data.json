@@ -2652,5 +2652,32 @@
     "Image_FileName": null,
     "Row_Key": "c0a7c175-b9c7-4fbf-b349-990d71094473",
     "created_at": "2026-08-15 01:00:30"
+  },
+  {
+    "Emp_ID": "104",
+    "Full_Name": "Cab3&Fr. Floor White",
+    "Role_User": "User",
+    "Username": "104W",
+    "Problem_Date": "2026-08-15",
+    "Kumi": "Cab3&Fr. Floor",
+    "Problem_Shift": "White",
+    "KPI": "HRD",
+    "Main_KPI": "CVI",
+    "Sub_KPI": "Internal Training",
+    "Process_KPI": "",
+    "Problem_Time": "",
+    "Problem_Hour": "",
+    "Problem_QTY": "",
+    "QTY_Unit": "",
+    "Unit_Problem": "",
+    "Problem_Target": "",
+    "Problem_Actual": "",
+    "Detail": "HRD GL",
+    "Countermeasure": "",
+    "Image_Base64": null,
+    "Image_MimeType": null,
+    "Image_FileName": null,
+    "Row_Key": "a0f3d7c9-b030-4997-96d7-05b12b4a81b1",
+    "created_at": "2026-08-15 03:44:20"
   }
 ]
